@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GD Gear Compare</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>GD Gear Compare</h1>
+    <div class="char-picker">
+      <label for="character-select">Character</label>
+      <select id="character-select"></select>
+      <span id="save-dir-warning" class="warning" hidden>
+        Save folder not found — you can still enter items manually below.
+      </span>
+    </div>
+  </header>
+
+  <main>
+    <section id="weights-panel" class="panel">
+      <h2>Priorities <span class="hint">(0 = ignore, 4 = top priority)</span></h2>
+      <div id="weights-list" class="weights-list"></div>
+      <button id="add-stat-btn" type="button">+ Add stat</button>
+    </section>
+
+    <section id="compare-panel" class="panel">
+      <h2>Compare</h2>
+      <div class="compare-grid">
+        <div class="item-column" id="column-a">
+          <h3>Currently Equipped</h3>
+          <label>Slot</label>
+          <select id="slot-select"></select>
+          <div class="item-card" id="item-a-card">
+            <p class="empty">Select a character and slot.</p>
+          </div>
+        </div>
+
+        <div class="item-column" id="column-b">
+          <h3>Candidate Item</h3>
+          <p class="hint">Enter the base item and any prefix/suffix DBR names, or paste them if you know the exact record path.</p>
+          <label>Base item name</label>
+          <input id="candidate-base" type="text" placeholder="e.g. records/items/gearhead/b001_helm.dbr" />
+          <label>Prefix</label>
+          <input id="candidate-prefix" type="text" placeholder="optional" />
+          <label>Suffix</label>
+          <input id="candidate-suffix" type="text" placeholder="optional" />
+          <button id="resolve-candidate-btn" type="button">Resolve item</button>
+          <div class="item-card" id="item-b-card">
+            <p class="empty">No candidate item yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <button id="compare-btn" type="button" class="primary">Compare</button>
+
+      <div id="verdict" class="verdict" hidden></div>
+      <div id="resist-table-wrap" hidden>
+        <h3>Resistance &amp; Survivability Impact</h3>
+        <table id="resist-table">
+          <thead>
+            <tr><th>Stat</th><th>Current</th><th>After swap</th><th>Change</th><th>Flag</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Local-only tool. Item/affix data vendored from
+      <a href="https://github.com/kultcher/grim_gleaner" target="_blank" rel="noopener">grim_gleaner</a>;
+      save parsing ported from
+      <a href="https://github.com/nbak/grim-save-parser" target="_blank" rel="noopener">grim-save-parser</a>.
+      Both MIT licensed.
+    </p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+[package]
+name = "gd-gear-compare"
+version = "0.1.0"
+edition = "2021"
+default-run = "gd-gear-compare"
+
+[[bin]]
+name = "gd-gear-compare"
+path = "src/main.rs"
+
+[dependencies]
+save-parser = { package = "parser", path = "vendor_save_parser" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+
+[profile.release]
+opt-level = 2
