@@ -14,6 +14,10 @@ use tiny_http::{Header, Method, Response, Server};
 const INDEX_HTML: &str = include_str!("../ui/index.html");
 const APP_JS: &str = include_str!("../ui/app.js");
 const STYLE_CSS: &str = include_str!("../ui/style.css");
+// Priority tab/package/stat taxonomy, ported from grim_gleaner's own
+// stats/registry.py so the priority UI matches grim_gleaner's categories
+// and labels rather than an ad-hoc grouping of raw catalog property_ids.
+const PRIORITY_TAXONOMY: &str = include_str!("../data/priority_taxonomy.json");
 
 pub struct AppState {
     pub catalog: Catalog,
@@ -53,6 +57,12 @@ fn handle(
         (Method::Get, "/api/characters") => api_list_characters(state),
         (Method::Get, "/api/stats-catalog") => {
             json_response(200, &json!({ "stats": state.catalog.all_property_ids() }))
+        }
+        (Method::Get, "/api/priority-taxonomy") => {
+            let header = Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+            Response::from_data(PRIORITY_TAXONOMY.as_bytes().to_vec())
+                .with_header(header)
+                .with_header(no_cache_header())
         }
         (Method::Get, path) if path.starts_with("/api/equipped/") => {
             let name = &path["/api/equipped/".len()..];

@@ -1,0 +1,467 @@
+{
+  "_source": "Ported from grim_gleaner's stats/registry.py (MIT licensed, https://github.com/kultcher/grim_gleaner) so priority tabs/categories/labels match grim_gleaner 1:1. A handful of stat_ids here are grim_gleaner's own derived/synthetic scoring concepts (base_weapon_damage_as_X, damage_conversion_to_X) rather than raw catalog property_ids — see README for how these are currently handled.",
+  "tabs": [
+    {
+      "tab_id": "damage",
+      "label": "Damage",
+      "packages": [
+        {
+          "package_id": "damage_base",
+          "label": "Base",
+          "stats": [
+            {"stat_id": "total_damage_percent", "label": "All Damage"},
+            {"stat_id": "critical_damage", "label": "Critical Damage"},
+            {"stat_id": "offensive_ability", "label": "Offensive Ability (Flat)"},
+            {"stat_id": "offensive_ability_percent", "label": "Offensive Ability (+%)"},
+            {"stat_id": "defensive_ability_reduction", "label": "Defensive Ability Reduction"},
+            {"stat_id": "target_resistance_reduction_flat", "label": "Resistance Reduction (Flat)"},
+            {"stat_id": "target_resistance_reduction_percent", "label": "Resistance Reduction (+%)"}
+          ]
+        },
+        {
+          "package_id": "damage_elemental",
+          "label": "Elemental",
+          "stats": [
+            {"stat_id": "flat_elemental_damage", "label": "Elemental Damage (Flat)"},
+            {"stat_id": "chance_flat_elemental_damage", "label": "Chance to Deal Flat Elemental Damage"},
+            {"stat_id": "elemental_damage_percent", "label": "Elemental Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_elemental", "label": "Base Weapon Damage as Elemental"},
+            {"stat_id": "damage_conversion_to_elemental", "label": "Damage Converted to Elemental"}
+          ]
+        },
+        {
+          "package_id": "damage_acid",
+          "label": "Acid / Poison",
+          "stats": [
+            {"stat_id": "flat_acid_damage", "label": "Acid Damage (Flat)"},
+            {"stat_id": "acid_damage_percent", "label": "Acid Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_acid", "label": "Base Weapon Damage as Acid"},
+            {"stat_id": "flat_poison_damage", "label": "Poison Damage (Flat DoT)"},
+            {"stat_id": "chance_flat_poison_damage", "label": "Chance to Deal Flat Poison Damage"},
+            {"stat_id": "poison_damage_percent", "label": "Poison Damage (+% DoT)"},
+            {"stat_id": "damage_conversion_to_acid", "label": "Damage Converted to Acid"}
+          ]
+        },
+        {
+          "package_id": "damage_aether",
+          "label": "Aether",
+          "stats": [
+            {"stat_id": "flat_aether_damage", "label": "Aether Damage (Flat)"},
+            {"stat_id": "aether_damage_percent", "label": "Aether Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_aether", "label": "Base Weapon Damage as Aether"},
+            {"stat_id": "damage_conversion_to_aether", "label": "Damage Converted to Aether"}
+          ]
+        },
+        {
+          "package_id": "damage_bleeding",
+          "label": "Bleeding",
+          "stats": [
+            {"stat_id": "flat_bleeding_damage", "label": "Bleeding Damage (Flat DoT)"},
+            {"stat_id": "chance_flat_bleeding_damage", "label": "Chance to Deal Flat Bleeding Damage"},
+            {"stat_id": "bleeding_damage_percent", "label": "Bleeding Damage (+% DoT)"}
+          ]
+        },
+        {
+          "package_id": "damage_fire",
+          "label": "Fire / Burn",
+          "stats": [
+            {"stat_id": "flat_fire_damage", "label": "Fire Damage (Flat)"},
+            {"stat_id": "chance_flat_fire_damage", "label": "Chance to Deal Flat Fire Damage"},
+            {"stat_id": "fire_damage_percent", "label": "Fire Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_fire", "label": "Base Weapon Damage as Fire"},
+            {"stat_id": "flat_burn_damage", "label": "Burn Damage (Flat DoT)"},
+            {"stat_id": "chance_flat_burn_damage", "label": "Chance to Deal Flat Burn Damage"},
+            {"stat_id": "burn_damage_percent", "label": "Burn Damage (+% DoT)"},
+            {"stat_id": "damage_conversion_to_fire", "label": "Damage Converted to Fire"}
+          ]
+        },
+        {
+          "package_id": "damage_chaos",
+          "label": "Chaos",
+          "stats": [
+            {"stat_id": "flat_chaos_damage", "label": "Chaos Damage (Flat)"},
+            {"stat_id": "chance_flat_chaos_damage", "label": "Chance to Deal Flat Chaos Damage"},
+            {"stat_id": "chaos_damage_percent", "label": "Chaos Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_chaos", "label": "Base Weapon Damage as Chaos"},
+            {"stat_id": "damage_conversion_to_chaos", "label": "Damage Converted to Chaos"}
+          ]
+        },
+        {
+          "package_id": "damage_cold",
+          "label": "Cold / Frostburn",
+          "stats": [
+            {"stat_id": "flat_cold_damage", "label": "Cold Damage (Flat)"},
+            {"stat_id": "cold_damage_percent", "label": "Cold Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_cold", "label": "Base Weapon Damage as Cold"},
+            {"stat_id": "flat_frostburn_damage", "label": "Frostburn Damage (Flat DoT)"},
+            {"stat_id": "chance_flat_frostburn_damage", "label": "Chance to Deal Flat Frostburn Damage"},
+            {"stat_id": "frostburn_damage_percent", "label": "Frostburn Damage (+% DoT)"},
+            {"stat_id": "damage_conversion_to_cold", "label": "Damage Converted to Cold"}
+          ]
+        },
+        {
+          "package_id": "damage_lightning",
+          "label": "Lightning / Electrocute",
+          "stats": [
+            {"stat_id": "flat_lightning_damage", "label": "Lightning Damage (Flat)"},
+            {"stat_id": "lightning_damage_percent", "label": "Lightning Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_lightning", "label": "Base Weapon Damage as Lightning"},
+            {"stat_id": "flat_electrocute_damage", "label": "Electrocute Damage (Flat DoT)"},
+            {"stat_id": "chance_flat_electrocute_damage", "label": "Chance to Deal Flat Electrocute Damage"},
+            {"stat_id": "electrocute_damage_percent", "label": "Electrocute Damage (+% DoT)"},
+            {"stat_id": "damage_conversion_to_lightning", "label": "Damage Converted to Lightning"}
+          ]
+        },
+        {
+          "package_id": "damage_physical",
+          "label": "Physical / Internal Trauma",
+          "stats": [
+            {"stat_id": "flat_physical_damage", "label": "Physical Damage (Flat)"},
+            {"stat_id": "chance_flat_physical_damage", "label": "Chance to Deal Flat Physical Damage"},
+            {"stat_id": "physical_damage_percent", "label": "Physical Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_physical", "label": "Base Weapon Damage as Physical"},
+            {"stat_id": "flat_internal_trauma_damage", "label": "Internal Trauma (Flat DoT)"},
+            {"stat_id": "chance_flat_internal_trauma_damage", "label": "Chance to Deal Flat Internal Trauma"},
+            {"stat_id": "internal_trauma_damage_percent", "label": "Internal Trauma (+% DoT)"},
+            {"stat_id": "damage_conversion_to_physical", "label": "Damage Converted to Physical"}
+          ]
+        },
+        {
+          "package_id": "damage_pierce",
+          "label": "Pierce",
+          "stats": [
+            {"stat_id": "flat_pierce_damage", "label": "Pierce Damage (Flat)"},
+            {"stat_id": "chance_flat_pierce_damage", "label": "Chance to Deal Flat Pierce Damage"},
+            {"stat_id": "pierce_damage_percent", "label": "Pierce Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_pierce", "label": "Base Weapon Damage as Pierce"},
+            {"stat_id": "armor_piercing_percent", "label": "100% Armor Piercing"},
+            {"stat_id": "damage_conversion_to_pierce", "label": "Damage Converted to Pierce"}
+          ]
+        },
+        {
+          "package_id": "damage_vitality",
+          "label": "Vitality / Vitality Decay",
+          "stats": [
+            {"stat_id": "flat_vitality_damage", "label": "Vitality Damage (Flat)"},
+            {"stat_id": "vitality_damage_percent", "label": "Vitality Damage (+%)"},
+            {"stat_id": "base_weapon_damage_as_vitality", "label": "Base Weapon Damage as Vitality"},
+            {"stat_id": "flat_vitality_decay_damage", "label": "Vitality Decay (Flat DoT)"},
+            {"stat_id": "chance_flat_vitality_decay_damage", "label": "Chance to Deal Flat Vitality Decay"},
+            {"stat_id": "vitality_decay_damage_percent", "label": "Vitality Decay (+% DoT)"},
+            {"stat_id": "damage_conversion_to_vitality", "label": "Damage Converted to Vitality"}
+          ]
+        }
+      ]
+    },
+    {
+      "tab_id": "defenses",
+      "label": "Defenses",
+      "packages": [
+        {
+          "package_id": "defense_ability",
+          "label": "Defensive Ability",
+          "stats": [
+            {"stat_id": "defensive_ability", "label": "Defensive Ability (Flat)"},
+            {"stat_id": "defensive_ability_percent", "label": "Defensive Ability (+%)"},
+            {"stat_id": "target_damage_reduction_percent", "label": "Reduced Target Damage"}
+          ]
+        },
+        {
+          "package_id": "defense_resistances",
+          "label": "Resistances",
+          "stats": [
+            {"stat_id": "elemental_resistance", "label": "Elemental Resistance"},
+            {"stat_id": "aether_resistance", "label": "Aether Resistance"},
+            {"stat_id": "bleeding_resistance", "label": "Bleeding Resistance"},
+            {"stat_id": "chaos_resistance", "label": "Chaos Resistance"},
+            {"stat_id": "cold_resistance", "label": "Cold Resistance"},
+            {"stat_id": "fire_resistance", "label": "Fire Resistance"},
+            {"stat_id": "lightning_resistance", "label": "Lightning Resistance"},
+            {"stat_id": "physical_resistance", "label": "Physical Resistance"},
+            {"stat_id": "pierce_resistance", "label": "Pierce Resistance"},
+            {"stat_id": "poison_acid_resistance", "label": "Poison & Acid Resistance"},
+            {"stat_id": "vitality_resistance", "label": "Vitality Resistance"}
+          ]
+        },
+        {
+          "package_id": "defense_maximum_resistances",
+          "label": "Maximum Resistances",
+          "stats": [
+            {"stat_id": "maximum_all_resistance", "label": "Maximum All Resistances"},
+            {"stat_id": "maximum_aether_resistance", "label": "Maximum Aether Resistance"},
+            {"stat_id": "maximum_bleeding_resistance", "label": "Maximum Bleeding Resistance"},
+            {"stat_id": "maximum_chaos_resistance", "label": "Maximum Chaos Resistance"},
+            {"stat_id": "maximum_cold_resistance", "label": "Maximum Cold Resistance"},
+            {"stat_id": "maximum_fire_resistance", "label": "Maximum Fire Resistance"},
+            {"stat_id": "maximum_lightning_resistance", "label": "Maximum Lightning Resistance"},
+            {"stat_id": "maximum_pierce_resistance", "label": "Maximum Pierce Resistance"},
+            {"stat_id": "maximum_poison_acid_resistance", "label": "Maximum Poison & Acid Resistance"},
+            {"stat_id": "maximum_vitality_resistance", "label": "Maximum Vitality Resistance"}
+          ]
+        },
+        {
+          "package_id": "defense_supplemental",
+          "label": "Supplemental Defenses",
+          "stats": [
+            {"stat_id": "armor", "label": "Armor (Flat)"},
+            {"stat_id": "armor_percent", "label": "Armor (+%)"},
+            {"stat_id": "armor_absorption_percent", "label": "Armor Absorption (+%)"},
+            {"stat_id": "dodge_chance", "label": "Dodge Chance"},
+            {"stat_id": "projectile_deflection", "label": "Projectile Deflection"},
+            {"stat_id": "reflected_damage_reduction", "label": "Reflected Damage Reduction"}
+          ]
+        },
+        {
+          "package_id": "defense_shield",
+          "label": "Shield",
+          "stats": [
+            {"stat_id": "shield_block_amount_percent", "label": "Shield Block Amount"},
+            {"stat_id": "shield_block_chance_percent", "label": "Shield Block Chance"},
+            {"stat_id": "shield_recovery_time_reduction", "label": "Shield Recovery Time Reduction"}
+          ]
+        },
+        {
+          "package_id": "defense_control",
+          "label": "Control Resistances",
+          "stats": [
+            {"stat_id": "stun_resistance", "label": "Stun Resistance"},
+            {"stat_id": "freeze_resistance", "label": "Freeze Resistance"},
+            {"stat_id": "entrapment_resistance", "label": "Entrapment Resistance"},
+            {"stat_id": "petrify_resistance", "label": "Petrify Resistance"},
+            {"stat_id": "slow_resistance", "label": "Slow Resistance"},
+            {"stat_id": "disruption_resistance", "label": "Disruption Resistance"}
+          ]
+        },
+        {
+          "package_id": "defense_retaliation",
+          "label": "Retaliation",
+          "stats": [
+            {"stat_id": "retaliation_damage_percent", "label": "Retaliation Damage (+%)"},
+            {"stat_id": "acid_retaliation_damage", "label": "Acid Retaliation"},
+            {"stat_id": "aether_retaliation_damage", "label": "Aether Retaliation"},
+            {"stat_id": "cold_retaliation_damage", "label": "Cold Retaliation"},
+            {"stat_id": "elemental_retaliation_damage", "label": "Elemental Retaliation"},
+            {"stat_id": "fire_retaliation_damage", "label": "Fire Retaliation"},
+            {"stat_id": "lightning_retaliation_damage", "label": "Lightning Retaliation"},
+            {"stat_id": "physical_retaliation_damage", "label": "Physical Retaliation"},
+            {"stat_id": "vitality_retaliation_damage", "label": "Vitality Retaliation"},
+            {"stat_id": "attack_speed_slow_retaliation", "label": "Reduced Attack Speed Retaliation"},
+            {"stat_id": "movement_speed_slow_retaliation", "label": "Reduced Movement Speed Retaliation"},
+            {"stat_id": "retaliation_effect_choice", "label": "Retaliation Effect Chance"}
+          ]
+        }
+      ]
+    },
+    {
+      "tab_id": "core",
+      "label": "Core",
+      "packages": [
+        {
+          "package_id": "core_speed",
+          "label": "Speed",
+          "stats": [
+            {"stat_id": "cooldown_reduction", "label": "Cooldown Reduction"},
+            {"stat_id": "movement_speed", "label": "Movement Speed"},
+            {"stat_id": "attack_speed", "label": "Attack Speed"},
+            {"stat_id": "casting_speed", "label": "Casting Speed"},
+            {"stat_id": "total_speed", "label": "Total Speed"}
+          ]
+        },
+        {
+          "package_id": "core_health",
+          "label": "Health",
+          "stats": [
+            {"stat_id": "health", "label": "Health (Flat)"},
+            {"stat_id": "health_percent", "label": "Health (+%)"},
+            {"stat_id": "health_regeneration", "label": "Health Regeneration (Flat)"},
+            {"stat_id": "health_regeneration_percent", "label": "Health Regeneration (+%)"},
+            {"stat_id": "attack_damage_converted_to_health", "label": "Attack Damage Converted to Health"},
+            {"stat_id": "healing_effects_increase", "label": "Healing Effects Increase"}
+          ]
+        },
+        {
+          "package_id": "core_attributes",
+          "label": "Attributes",
+          "stats": [
+            {"stat_id": "physique", "label": "Physique (Flat)"},
+            {"stat_id": "physique_percent", "label": "Physique (+%)"},
+            {"stat_id": "cunning", "label": "Cunning (Flat)"},
+            {"stat_id": "cunning_percent", "label": "Cunning (+%)"},
+            {"stat_id": "spirit", "label": "Spirit (Flat)"},
+            {"stat_id": "spirit_percent", "label": "Spirit (+%)"}
+          ]
+        },
+        {
+          "package_id": "core_energy",
+          "label": "Energy",
+          "stats": [
+            {"stat_id": "energy", "label": "Energy (Flat)"},
+            {"stat_id": "energy_percent", "label": "Energy (+%)"},
+            {"stat_id": "energy_regeneration", "label": "Energy Regeneration (Flat)"},
+            {"stat_id": "energy_regeneration_percent", "label": "Energy Regeneration (+%)"},
+            {"stat_id": "energy_absorbed_from_enemy_spells", "label": "Energy Absorbed from Enemy Spells"},
+            {"stat_id": "skill_energy_cost_reduction", "label": "Skill Energy Cost Reduction"}
+          ]
+        },
+        {
+          "package_id": "core_requirements",
+          "label": "Attribute Requirements",
+          "stats": [
+            {"stat_id": "all_attribute_requirements_reduction", "label": "All Attribute Requirements Reduction"},
+            {"stat_id": "melee_weapon_cunning_requirement_reduction", "label": "Melee Weapon Cunning Requirement Reduction"},
+            {"stat_id": "ranged_weapon_cunning_requirement_reduction", "label": "Ranged Weapon Cunning Requirement Reduction"}
+          ]
+        }
+      ]
+    },
+    {
+      "tab_id": "advanced",
+      "label": "Advanced",
+      "packages": [
+        {
+          "package_id": "advanced_niche",
+          "label": "Rare / Niche",
+          "stats": [
+            {"stat_id": "confusion", "label": "Chance to Confuse Target"},
+            {"stat_id": "fumble", "label": "Chance for Target to Fumble Attacks"},
+            {"stat_id": "freeze", "label": "Chance to Freeze Target"},
+            {"stat_id": "knockdown", "label": "Chance to Knockdown Target"},
+            {"stat_id": "enemy_health_reduction_percent", "label": "Enemy Health Reduction"},
+            {"stat_id": "energy_burn_percent", "label": "Energy Burn (+%)"},
+            {"stat_id": "energy_leech", "label": "Energy Leech"},
+            {"stat_id": "energy_leech_retaliation", "label": "Energy Leech Retaliation over 2 Seconds"},
+            {"stat_id": "confusion_retaliation", "label": "Seconds of Confuse Retaliation"},
+            {"stat_id": "target_attack_speed_reduction", "label": "Slower Target Attack Speed"},
+            {"stat_id": "target_movement_speed_reduction", "label": "Slower Target Movement"},
+            {"stat_id": "target_physical_damage_reduction_percent", "label": "Reduced Target Physical Damage"},
+            {"stat_id": "target_total_speed_reduction", "label": "Reduced Target Total Speed"},
+            {"stat_id": "light_radius_percent", "label": "Increased Light Radius"},
+            {"stat_id": "stun_duration", "label": "Stun Duration"}
+          ]
+        },
+        {
+          "package_id": "advanced_creature_types",
+          "label": "Creature Type Bonuses",
+          "stats": [
+            {"stat_id": "racial_damage_bonus_vs_undead", "label": "Damage to Undead"},
+            {"stat_id": "racial_defense_bonus_vs_undead", "label": "Less Damage from Undead"},
+            {"stat_id": "racial_damage_bonus_vs_beastkin", "label": "Damage to Beastkin"},
+            {"stat_id": "racial_defense_bonus_vs_beastkin", "label": "Less Damage from Beastkin"},
+            {"stat_id": "racial_damage_bonus_vs_aetherial", "label": "Damage to Aetherials"},
+            {"stat_id": "racial_defense_bonus_vs_aetherial", "label": "Less Damage from Aetherials"},
+            {"stat_id": "racial_damage_bonus_vs_chthonic", "label": "Damage to Chthonics"},
+            {"stat_id": "racial_defense_bonus_vs_chthonic", "label": "Less Damage from Chthonics"},
+            {"stat_id": "racial_damage_bonus_vs_aether_corruption", "label": "Damage to Aether Corruption"},
+            {"stat_id": "racial_defense_bonus_vs_aether_corruption", "label": "Less Damage from Aether Corruption"},
+            {"stat_id": "racial_damage_bonus_vs_human", "label": "Damage to Humans"},
+            {"stat_id": "racial_defense_bonus_vs_human", "label": "Less Damage from Humans"},
+            {"stat_id": "racial_damage_bonus_vs_beast", "label": "Damage to Beasts"},
+            {"stat_id": "racial_defense_bonus_vs_beast", "label": "Less Damage from Beasts"}
+          ]
+        }
+      ]
+    },
+    {
+      "tab_id": "pets",
+      "label": "Pets",
+      "packages": [
+        {
+          "package_id": "pets_damage",
+          "label": "Damage",
+          "stats": [
+            {"stat_id": "pet_total_damage_percent", "label": "Pet Total Damage (+%)"},
+            {"stat_id": "pet_offensive_ability_percent", "label": "Pet Offensive Ability (+%)"},
+            {"stat_id": "pet_critical_damage", "label": "Pet Critical Damage"},
+            {"stat_id": "pet_attack_speed", "label": "Pet Attack Speed"},
+            {"stat_id": "pet_flat_acid_damage", "label": "Pet Acid Damage (Flat)"},
+            {"stat_id": "pet_acid_damage_percent", "label": "Pet Acid Damage (+%)"},
+            {"stat_id": "pet_flat_poison_damage", "label": "Pet Poison Damage (Flat DoT)"},
+            {"stat_id": "pet_poison_damage_percent", "label": "Pet Poison Damage (+% DoT)"},
+            {"stat_id": "pet_flat_aether_damage", "label": "Pet Aether Damage (Flat)"},
+            {"stat_id": "pet_aether_damage_percent", "label": "Pet Aether Damage (+%)"},
+            {"stat_id": "pet_flat_bleeding_damage", "label": "Pet Bleeding Damage (Flat DoT)"},
+            {"stat_id": "pet_bleeding_damage_percent", "label": "Pet Bleeding Damage (+% DoT)"},
+            {"stat_id": "pet_flat_chaos_damage", "label": "Pet Chaos Damage (Flat)"},
+            {"stat_id": "pet_chaos_damage_percent", "label": "Pet Chaos Damage (+%)"},
+            {"stat_id": "pet_flat_cold_damage", "label": "Pet Cold Damage (Flat)"},
+            {"stat_id": "pet_cold_damage_percent", "label": "Pet Cold Damage (+%)"},
+            {"stat_id": "pet_frostburn_damage_percent", "label": "Pet Frostburn Damage (+% DoT)"},
+            {"stat_id": "pet_flat_elemental_damage", "label": "Pet Elemental Damage (Flat)"},
+            {"stat_id": "pet_elemental_damage_percent", "label": "Pet Elemental Damage (+%)"},
+            {"stat_id": "pet_flat_fire_damage", "label": "Pet Fire Damage (Flat)"},
+            {"stat_id": "pet_fire_damage_percent", "label": "Pet Fire Damage (+%)"},
+            {"stat_id": "pet_burn_damage_percent", "label": "Pet Burn Damage (+% DoT)"},
+            {"stat_id": "pet_flat_lightning_damage", "label": "Pet Lightning Damage (Flat)"},
+            {"stat_id": "pet_lightning_damage_percent", "label": "Pet Lightning Damage (+%)"},
+            {"stat_id": "pet_electrocute_damage_percent", "label": "Pet Electrocute Damage (+% DoT)"},
+            {"stat_id": "pet_flat_physical_damage", "label": "Pet Physical Damage (Flat)"},
+            {"stat_id": "pet_physical_damage_percent", "label": "Pet Physical Damage (+%)"},
+            {"stat_id": "pet_internal_trauma_damage_percent", "label": "Pet Internal Trauma Damage (+% DoT)"},
+            {"stat_id": "pet_flat_vitality_damage", "label": "Pet Vitality Damage (Flat)"},
+            {"stat_id": "pet_vitality_damage_percent", "label": "Pet Vitality Damage (+%)"},
+            {"stat_id": "pet_vitality_decay_damage_percent", "label": "Pet Vitality Decay Damage (+% DoT)"}
+          ]
+        },
+        {
+          "package_id": "pets_defenses",
+          "label": "Defenses",
+          "stats": [
+            {"stat_id": "pet_health_percent", "label": "Pet Health (+%)"},
+            {"stat_id": "pet_defensive_ability_percent", "label": "Pet Defensive Ability (+%)"},
+            {"stat_id": "pet_elemental_resistance", "label": "Pet Elemental Resistance"},
+            {"stat_id": "pet_aether_resistance", "label": "Pet Aether Resistance"},
+            {"stat_id": "pet_bleeding_resistance", "label": "Pet Bleeding Resistance"},
+            {"stat_id": "pet_chaos_resistance", "label": "Pet Chaos Resistance"},
+            {"stat_id": "pet_lightning_resistance", "label": "Pet Lightning Resistance"},
+            {"stat_id": "pet_physical_resistance", "label": "Pet Physical Resistance"},
+            {"stat_id": "pet_pierce_resistance", "label": "Pet Pierce Resistance"},
+            {"stat_id": "pet_poison_acid_resistance", "label": "Pet Poison & Acid Resistance"},
+            {"stat_id": "pet_vitality_resistance", "label": "Pet Vitality Resistance"},
+            {"stat_id": "pet_stun_resistance", "label": "Pet Stun Resistance"},
+            {"stat_id": "pet_freeze_resistance", "label": "Pet Freeze Resistance"},
+            {"stat_id": "pet_entrapment_resistance", "label": "Pet Entrapment Resistance"},
+            {"stat_id": "pet_petrify_resistance", "label": "Pet Petrify Resistance"},
+            {"stat_id": "pet_slow_resistance", "label": "Pet Slow Resistance"},
+            {"stat_id": "pet_armor_percent", "label": "Pet Armor (+%)"},
+            {"stat_id": "pet_maximum_all_resistance", "label": "Pet Maximum All Resistances"}
+          ]
+        },
+        {
+          "package_id": "pets_conversions",
+          "label": "Damage Conversions",
+          "stats": [
+            {"stat_id": "pet_damage_conversion_to_acid", "label": "Pet Damage Converted to Acid"},
+            {"stat_id": "pet_damage_conversion_to_aether", "label": "Pet Damage Converted to Aether"},
+            {"stat_id": "pet_damage_conversion_to_chaos", "label": "Pet Damage Converted to Chaos"},
+            {"stat_id": "pet_damage_conversion_to_cold", "label": "Pet Damage Converted to Cold"},
+            {"stat_id": "pet_damage_conversion_to_elemental", "label": "Pet Damage Converted to Elemental"},
+            {"stat_id": "pet_damage_conversion_to_fire", "label": "Pet Damage Converted to Fire"},
+            {"stat_id": "pet_damage_conversion_to_lightning", "label": "Pet Damage Converted to Lightning"},
+            {"stat_id": "pet_damage_conversion_to_physical", "label": "Pet Damage Converted to Physical"},
+            {"stat_id": "pet_damage_conversion_to_pierce", "label": "Pet Damage Converted to Pierce"},
+            {"stat_id": "pet_damage_conversion_to_vitality", "label": "Pet Damage Converted to Vitality"}
+          ]
+        },
+        {
+          "package_id": "pets_retaliation",
+          "label": "Retaliation",
+          "stats": [
+            {"stat_id": "pet_acid_retaliation_damage", "label": "Pet Acid Retaliation"},
+            {"stat_id": "pet_physical_retaliation_damage", "label": "Pet Physical Retaliation"},
+            {"stat_id": "pet_retaliation_damage_percent", "label": "Pet Retaliation Damage (+%)"}
+          ]
+        },
+        {
+          "package_id": "pets_utility",
+          "label": "Utility / Other",
+          "stats": [
+            {"stat_id": "pet_total_speed", "label": "Pet Total Speed"}
+          ]
+        }
+      ]
+    }
+  ],
+  "extra_weightable": [
+    {"stat_id": "all_skills_bonus", "label": "All Skills"}
+  ]
+}

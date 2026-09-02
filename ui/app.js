@@ -5,45 +5,37 @@ const SLOT_LABELS = [
   "Belt", "Amulet", "Ring 1", "Ring 2", "Medal", "Weapon/Off-hand",
 ];
 
-// Resistances are always shown first and default to max priority (4 stars) —
-// in Grim Dawn, capping resistances is close to a hard requirement before
-// raw damage matters at all, so we don't make the user remember to set these.
-const RESISTANCE_STATS = [
-  "fire_resistance", "cold_resistance", "lightning_resistance",
-  "aether_resistance", "chaos_resistance", "vitality_resistance",
-  "poison_acid_resistance", "physical_resistance", "pierce_resistance",
-  "bleeding_resistance",
-];
+// Priority tabs/packages/stat labels are NOT hand-curated here — they're
+// fetched from /api/priority-taxonomy, a direct port of grim_gleaner's own
+// stats/registry.py (see data/priority_taxonomy.json), so this matches
+// grim_gleaner's own categories 1:1 rather than an ad-hoc grouping.
+let TAXONOMY = { tabs: [] }; // filled by loadTaxonomy()
 
-// The full stat picker is NOT hand-curated here — it's fetched from
-// /api/stats-catalog, which reflects every property_id actually present in
-// the vendored grim_gleaner catalog (computed server-side in catalog.rs).
-// A hardcoded list here previously went stale/wrong; this can't drift since
-// it's the same data the resolver itself uses.
-let STAT_CATALOG_FLAT = []; // filled by loadStatCatalog()
+// Resistances (the "Resistances" package inside grim_gleaner's "Defenses"
+// tab) default to max priority (4 stars) — capping resist is close to a
+// hard requirement in Grim Dawn before raw damage matters, so we don't
+// make the user remember to set these. Populated once the taxonomy loads.
+let RESISTANCE_STATS = [];
 
-function groupStat(id) {
-  if (id.startsWith("maximum_") && id.includes("resistance")) return "Resistance Caps";
-  if (id.endsWith("_resistance")) return "Resistances";
-  if (id.startsWith("pet_")) return "Pet";
-  if (id.includes("damage") || id.includes("retaliation")) return "Offense — Damage";
-  if (
-    ["offensive_ability", "offensive_ability_percent", "attack_speed", "casting_speed",
-     "critical_damage", "cooldown_reduction"].includes(id)
-  ) return "Offense — General";
-  if (
-    ["health", "health_percent", "health_regeneration", "health_regeneration_percent",
-     "armor", "armor_percent", "armor_absorption_percent", "defensive_ability",
-     "defensive_ability_percent", "physique", "physique_percent", "dodge_chance",
-     "reflected_damage_reduction"].includes(id)
-  ) return "Survivability";
-  return "Other";
+async function loadTaxonomy() {
+  const data = await api("/api/priority-taxonomy");
+  TAXONOMY = data;
+  const defensesTab = TAXONOMY.tabs.find((t) => t.tab_id === "defenses");
+  const resistPkg = defensesTab?.packages.find((p) => p.package_id === "defense_resistances");
+  RESISTANCE_STATS = resistPkg ? resistPkg.stats.map((s) => s.stat_id) : [];
+  renderWeights(); // nothing renders correctly until the taxonomy arrives
 }
 
-async function loadStatCatalog() {
-  const data = await api("/api/stats-catalog");
-  STAT_CATALOG_FLAT = data.stats || [];
-  renderWeights(); // tabs beyond "Resistances" are empty until this arrives
+// A stat_id's label, if the taxonomy defines one (grim_gleaner's curated
+// text); otherwise fall back to a mechanically prettified property_id.
+function statLabel(id) {
+  for (const tab of TAXONOMY.tabs) {
+    for (const pkg of tab.packages) {
+      const found = pkg.stats.find((s) => s.stat_id === id);
+      if (found) return found.label;
+    }
+  }
+  return prettyStat(id);
 }
 
 let state = {
@@ -141,15 +133,10 @@ function ensureResistanceDefaults() {
   }
 }
 
-// Tabs: Resistances is its own always-visible tab (not pinned above the
-// others anymore — same tab mechanism, just first and pre-selected), plus
-// one tab per real category so 205 stats are never dumped in one long list.
-const TAB_ORDER = [
-  "Resistances", "Survivability", "Offense — General", "Offense — Damage",
-  "Resistance Caps", "Pet", "Other",
-];
-
-let activeTab = "Resistances";
+// Tabs come straight from the taxonomy (Damage, Defenses, Core, Advanced,
+// Pets — grim_gleaner's own tab set), defaulting to Defenses since that's
+// where Resistances lives and resistances are the always-relevant default.
+let activeTabId = "defenses";
 
 function renderWeights() {
   ensureResistanceDefaults();
@@ -160,17 +147,14 @@ function renderWeights() {
 function renderTabBar() {
   const bar = document.getElementById("weights-tabs");
   bar.innerHTML = "";
-  const present = new Set(STAT_CATALOG_FLAT.map(groupStat));
-  present.add("Resistances");
-  for (const tab of TAB_ORDER) {
-    if (!present.has(tab)) continue;
+  for (const tab of TAXONOMY.tabs) {
     const btn = el("button", {
       type: "button",
-      class: "tab-btn" + (tab === activeTab ? " active" : ""),
-      text: tab,
+      class: "tab-btn" + (tab.tab_id === activeTabId ? " active" : ""),
+      text: tab.label,
     });
     btn.addEventListener("click", () => {
-      activeTab = tab;
+      activeTabId = tab.tab_id;
       renderTabBar();
       renderTabBody();
     });
@@ -182,26 +166,24 @@ function renderTabBody() {
   const list = document.getElementById("weights-list");
   list.innerHTML = "";
 
-  const stats = activeTab === "Resistances"
-    ? RESISTANCE_STATS
-    : STAT_CATALOG_FLAT.filter((s) => groupStat(s) === activeTab).sort(
-        (a, b) => prettyStat(a).localeCompare(prettyStat(b))
-      );
-
-  if (stats.length === 0) {
-    list.appendChild(el("p", { class: "hint", text: "No stats in this category yet — still loading?" }));
+  const tab = TAXONOMY.tabs.find((t) => t.tab_id === activeTabId);
+  if (!tab) {
+    list.appendChild(el("p", { class: "hint", text: "Loading stat categories…" }));
     return;
   }
 
-  for (const stat of stats) {
-    list.appendChild(weightRow(stat));
+  for (const pkg of tab.packages) {
+    list.appendChild(el("h3", { class: "weights-subhead", text: pkg.label }));
+    for (const statDef of pkg.stats) {
+      list.appendChild(weightRow(statDef.stat_id, statDef.label));
+    }
   }
 }
 
-function weightRow(stat) {
+function weightRow(stat, label) {
   const isResist = RESISTANCE_STATS.includes(stat);
   const row = el("div", { class: "weight-row" });
-  row.appendChild(el("span", { class: "stat-name", text: prettyStat(stat) }));
+  row.appendChild(el("span", { class: "stat-name", text: label || statLabel(stat) }));
   const stars = el("div", { class: "stars" });
   const current = state.weights[stat] || 0;
   for (let i = 1; i <= 4; i++) {
@@ -289,7 +271,7 @@ function renderStatLines(card, stats) {
   for (const [stat, value] of entries) {
     card.appendChild(
       el("div", { class: "stat-line" }, [
-        el("span", { text: prettyStat(stat) }),
+        el("span", { text: statLabel(stat) }),
         el("span", { text: (value > 0 ? "+" : "") + value.toFixed(1) }),
       ])
     );
@@ -402,7 +384,7 @@ document.getElementById("character-select").addEventListener("change", async (e)
 
 // ---------- init ----------
 renderWeights();
-loadStatCatalog().catch((err) => console.error("stat catalog load failed", err));
+loadTaxonomy().catch((err) => console.error("priority taxonomy load failed", err));
 loadCharacters().catch((err) => {
   console.error(err);
   document.getElementById("save-dir-warning").hidden = false;

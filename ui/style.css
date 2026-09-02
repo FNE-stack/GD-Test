@@ -111,6 +111,17 @@ main {
   color: #fff;
 }
 
+.weights-subhead {
+  margin: 0.9rem 0 0.25rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.weights-subhead:first-child { margin-top: 0; }
+
 .weights-list {
   display: flex;
   flex-direction: column;
