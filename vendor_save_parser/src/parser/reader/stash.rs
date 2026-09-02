@@ -55,6 +55,9 @@ impl<T: Read> Parser for StashFileReader<T> {
     fn block_depth(&self) -> usize {
         self.blocks.len()
     }
+    fn current_block_end(&self) -> u64 {
+        self.blocks.last().map(|b| b.end).unwrap_or(0)
+    }
     fn set_key(&mut self, key: u32) {
         self.key = key;
     }
