@@ -21,8 +21,8 @@
   <main>
     <section id="weights-panel" class="panel">
       <h2>Priorities <span class="hint">(0 = ignore, 4 = top priority — resistances default to max)</span></h2>
+      <div id="weights-tabs" class="tab-bar"></div>
       <div id="weights-list" class="weights-list"></div>
-      <button id="add-stat-btn" type="button">+ Add stat</button>
     </section>
 
     <section id="compare-panel" class="panel">
@@ -71,15 +71,6 @@
       </div>
     </section>
   </main>
-
-  <div id="stat-picker-modal" class="modal-backdrop" hidden>
-    <div class="modal-card">
-      <h3>Add a stat priority</h3>
-      <input id="stat-picker-search" type="text" placeholder="Search stats… (e.g. fire, health, offensive)" />
-      <div id="stat-picker-body"></div>
-      <button id="stat-picker-close" type="button">Close</button>
-    </div>
-  </div>
 
   <footer>
     <p>Local-only tool. Item/affix data vendored from

@@ -43,6 +43,7 @@ function groupStat(id) {
 async function loadStatCatalog() {
   const data = await api("/api/stats-catalog");
   STAT_CATALOG_FLAT = data.stats || [];
+  renderWeights(); // tabs beyond "Resistances" are empty until this arrives
 }
 
 let state = {
@@ -140,44 +141,84 @@ function ensureResistanceDefaults() {
   }
 }
 
+// Tabs: Resistances is its own always-visible tab (not pinned above the
+// others anymore — same tab mechanism, just first and pre-selected), plus
+// one tab per real category so 205 stats are never dumped in one long list.
+const TAB_ORDER = [
+  "Resistances", "Survivability", "Offense — General", "Offense — Damage",
+  "Resistance Caps", "Pet", "Other",
+];
+
+let activeTab = "Resistances";
+
 function renderWeights() {
   ensureResistanceDefaults();
+  renderTabBar();
+  renderTabBody();
+}
+
+function renderTabBar() {
+  const bar = document.getElementById("weights-tabs");
+  bar.innerHTML = "";
+  const present = new Set(STAT_CATALOG_FLAT.map(groupStat));
+  present.add("Resistances");
+  for (const tab of TAB_ORDER) {
+    if (!present.has(tab)) continue;
+    const btn = el("button", {
+      type: "button",
+      class: "tab-btn" + (tab === activeTab ? " active" : ""),
+      text: tab,
+    });
+    btn.addEventListener("click", () => {
+      activeTab = tab;
+      renderTabBar();
+      renderTabBody();
+    });
+    bar.appendChild(btn);
+  }
+}
+
+function renderTabBody() {
   const list = document.getElementById("weights-list");
   list.innerHTML = "";
 
-  list.appendChild(el("h3", { class: "weights-subhead", text: "Resistances" }));
-  for (const stat of RESISTANCE_STATS) {
-    list.appendChild(weightRow(stat));
+  const stats = activeTab === "Resistances"
+    ? RESISTANCE_STATS
+    : STAT_CATALOG_FLAT.filter((s) => groupStat(s) === activeTab).sort(
+        (a, b) => prettyStat(a).localeCompare(prettyStat(b))
+      );
+
+  if (stats.length === 0) {
+    list.appendChild(el("p", { class: "hint", text: "No stats in this category yet — still loading?" }));
+    return;
   }
 
-  const otherStats = Object.keys(state.weights).filter((s) => !RESISTANCE_STATS.includes(s));
-  if (otherStats.length) {
-    list.appendChild(el("h3", { class: "weights-subhead", text: "Other Priorities" }));
-    for (const stat of otherStats) {
-      list.appendChild(weightRow(stat));
-    }
+  for (const stat of stats) {
+    list.appendChild(weightRow(stat));
   }
 }
 
 function weightRow(stat) {
+  const isResist = RESISTANCE_STATS.includes(stat);
   const row = el("div", { class: "weight-row" });
   row.appendChild(el("span", { class: "stat-name", text: prettyStat(stat) }));
   const stars = el("div", { class: "stars" });
+  const current = state.weights[stat] || 0;
   for (let i = 1; i <= 4; i++) {
-    const star = el("span", { class: "star" + (state.weights[stat] >= i ? " filled" : ""), text: "★" });
+    const star = el("span", { class: "star" + (current >= i ? " filled" : ""), text: "★" });
     star.addEventListener("click", () => {
       state.weights[stat] = state.weights[stat] === i ? i - 1 : i;
-      renderWeights();
+      renderTabBody();
       saveProfile();
     });
     stars.appendChild(star);
   }
   row.appendChild(stars);
-  if (!RESISTANCE_STATS.includes(stat)) {
-    const remove = el("span", { class: "remove-stat", text: "✕", title: "Remove" });
+  if (!isResist && current > 0) {
+    const remove = el("span", { class: "remove-stat", text: "✕", title: "Reset to 0" });
     remove.addEventListener("click", () => {
       delete state.weights[stat];
-      renderWeights();
+      renderTabBody();
       saveProfile();
     });
     row.appendChild(remove);
@@ -188,77 +229,6 @@ function weightRow(stat) {
 function prettyStat(id) {
   return id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
-
-document.getElementById("add-stat-btn").addEventListener("click", () => {
-  openStatPicker();
-});
-
-function openStatPicker() {
-  const modal = document.getElementById("stat-picker-modal");
-  document.getElementById("stat-picker-search").value = "";
-  renderStatPickerList("");
-  modal.hidden = false;
-  document.getElementById("stat-picker-search").focus();
-}
-
-function renderStatPickerList(filterText) {
-  const body = document.getElementById("stat-picker-body");
-  body.innerHTML = "";
-
-  const filter = filterText.trim().toLowerCase();
-  const groups = {};
-  for (const stat of STAT_CATALOG_FLAT) {
-    if (RESISTANCE_STATS.includes(stat)) continue; // already always shown above, pinned
-    if (filter && !prettyStat(stat).toLowerCase().includes(filter) && !stat.includes(filter)) {
-      continue;
-    }
-    const group = groupStat(stat);
-    (groups[group] ||= []).push(stat);
-  }
-
-  const groupOrder = [
-    "Survivability", "Offense — General", "Offense — Damage",
-    "Resistance Caps", "Resistances", "Pet", "Other",
-  ];
-  const orderedGroups = groupOrder.filter((g) => groups[g]);
-  for (const g of Object.keys(groups)) {
-    if (!orderedGroups.includes(g)) orderedGroups.push(g);
-  }
-
-  if (orderedGroups.length === 0) {
-    body.appendChild(el("p", { class: "hint", text: "No stats match your search." }));
-    return;
-  }
-
-  for (const group of orderedGroups) {
-    body.appendChild(el("h4", { text: group }));
-    const grid = el("div", { class: "stat-picker-grid" });
-    for (const stat of groups[group]) {
-      const already = stat in state.weights;
-      const btn = el("button", {
-        type: "button",
-        class: "stat-pick-btn" + (already ? " already-added" : ""),
-        text: prettyStat(stat) + (already ? " ✓" : ""),
-      });
-      btn.addEventListener("click", () => {
-        if (!(stat in state.weights)) state.weights[stat] = 2;
-        renderWeights();
-        saveProfile();
-        document.getElementById("stat-picker-modal").hidden = true;
-      });
-      grid.appendChild(btn);
-    }
-    body.appendChild(grid);
-  }
-}
-
-document.getElementById("stat-picker-search").addEventListener("input", (e) => {
-  renderStatPickerList(e.target.value);
-});
-
-document.getElementById("stat-picker-close").addEventListener("click", () => {
-  document.getElementById("stat-picker-modal").hidden = true;
-});
 
 async function loadProfile() {
   if (!state.character) return;

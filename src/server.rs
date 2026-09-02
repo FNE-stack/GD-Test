@@ -188,19 +188,34 @@ fn json_response(status: u16, value: &serde_json::Value) -> Response<std::io::Cu
         .with_header(header)
 }
 
+// The UI is embedded in the binary and can change between builds, but the
+// browser has no way to know that from the URL alone (it's always the same
+// http://127.0.0.1:PORT/app.js). Without an explicit no-store, browsers
+// happily serve a stale cached copy from a previous run of the app, which
+// silently hides fixes like this one. So: never cache these three files.
+fn no_cache_header() -> Header {
+    Header::from_bytes(&b"Cache-Control"[..], &b"no-store, must-revalidate"[..]).unwrap()
+}
+
 fn html_response(body: &str) -> Response<std::io::Cursor<Vec<u8>>> {
     let header = Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap();
-    Response::from_data(body.as_bytes().to_vec()).with_header(header)
+    Response::from_data(body.as_bytes().to_vec())
+        .with_header(header)
+        .with_header(no_cache_header())
 }
 
 fn js_response(body: &str) -> Response<std::io::Cursor<Vec<u8>>> {
     let header =
         Header::from_bytes(&b"Content-Type"[..], &b"application/javascript; charset=utf-8"[..])
             .unwrap();
-    Response::from_data(body.as_bytes().to_vec()).with_header(header)
+    Response::from_data(body.as_bytes().to_vec())
+        .with_header(header)
+        .with_header(no_cache_header())
 }
 
 fn css_response(body: &str) -> Response<std::io::Cursor<Vec<u8>>> {
     let header = Header::from_bytes(&b"Content-Type"[..], &b"text/css; charset=utf-8"[..]).unwrap();
-    Response::from_data(body.as_bytes().to_vec()).with_header(header)
+    Response::from_data(body.as_bytes().to_vec())
+        .with_header(header)
+        .with_header(no_cache_header())
 }

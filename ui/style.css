@@ -81,23 +81,45 @@ main {
   font-size: 0.85rem;
 }
 
-.weights-list {
+.tab-bar {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
   margin-bottom: 0.75rem;
 }
 
-.weights-subhead {
-  margin: 0.75rem 0 0.25rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  font-weight: 700;
+.tab-btn {
+  margin-top: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
 }
 
-.weights-subhead:first-child { margin-top: 0; }
+.tab-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.weights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.75rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+}
 
 .weight-row {
   display: flex;
@@ -286,54 +308,6 @@ th { color: var(--text-dim); font-weight: 700; font-size: 0.8rem; text-transform
 .flag-overcap { color: var(--accent-strong); font-weight: 600; }
 .flag-dangerous { color: var(--danger); font-weight: 700; }
 .flag-ok { color: var(--ok); font-weight: 600; }
-
-/* Stat picker modal */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 20, 30, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-
-.modal-backdrop[hidden] {
-  display: none;
-}
-
-.modal-card {
-  background: #fff;
-  border-radius: 10px;
-  padding: 1.5rem;
-  max-width: 640px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-  box-shadow: 0 8px 30px rgba(20, 20, 30, 0.2);
-}
-
-.modal-card h3 { margin-top: 0; }
-.modal-card h4 { margin: 1rem 0 0.4rem; color: var(--text-dim); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
-
-.stat-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.4rem;
-}
-
-.stat-pick-btn {
-  margin-top: 0;
-  font-weight: 500;
-  font-size: 0.85rem;
-  text-align: left;
-}
-
-.stat-pick-btn.already-added {
-  background: var(--ok-bg);
-  border-color: var(--ok);
-  color: var(--ok);
-}
 
 footer {
   max-width: 980px;
