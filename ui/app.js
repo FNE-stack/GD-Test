@@ -375,6 +375,68 @@ document.getElementById("import-gg-file").addEventListener("change", async (e) =
   }
 });
 
+// ---------- Check for new items ----------
+// Diffs the character's current stash/backpack against a snapshot from
+// the last time this ran (persisted server-side per character) and lists
+// whatever's new. Not instant — it only sees what Grim Dawn has actually
+// written to the save file (autosave, leaving an area, opening the menu,
+// etc), not the moment an item is picked up. Clicking a result fills in
+// the manual fields below and resolves it as the candidate, same as
+// typing the paths in by hand.
+
+document.getElementById("check-new-items-btn").addEventListener("click", async () => {
+  const status = document.getElementById("new-items-status");
+  const list = document.getElementById("new-items-list");
+  if (!state.character) {
+    status.className = "hint";
+    status.textContent = "Pick a character first.";
+    return;
+  }
+  status.className = "hint";
+  status.textContent = "Checking…";
+  list.hidden = true;
+  list.innerHTML = "";
+  try {
+    const data = await api(`/api/new-items/${encodeURIComponent(state.character)}`);
+    if (data.is_first_check) {
+      status.className = "hint";
+      status.textContent =
+        "Baseline set from your current stash/backpack — play a bit, then check again to see what's new.";
+      return;
+    }
+    if (!data.new_items || data.new_items.length === 0) {
+      status.className = "hint";
+      status.textContent = "No new items since your last check.";
+      return;
+    }
+    status.className = "status-ok";
+    status.textContent = `${data.new_items.length} new item(s) — click one to compare it:`;
+    list.hidden = false;
+    for (const item of data.new_items) {
+      const row = el("div", { class: "new-item-row" }, [
+        el("span", { text: item.display_name || item.base_name }),
+        el("button", { type: "button", class: "use-btn", text: "Use as candidate" }),
+      ]);
+      row.addEventListener("click", () => {
+        document.getElementById("candidate-base").value = item.base_name || "";
+        document.getElementById("candidate-prefix").value = item.prefix_name || "";
+        document.getElementById("candidate-suffix").value = item.suffix_name || "";
+        state.candidateItem = {
+          display_name: item.display_name,
+          stats: item.stats || {},
+          unresolved: item.unresolved,
+        };
+        renderItemB();
+      });
+      list.appendChild(row);
+    }
+  } catch (err) {
+    console.error(err);
+    status.className = "status-error";
+    status.textContent = "❌ " + err.message;
+  }
+});
+
 // ---------- Candidate item ----------
 
 document.getElementById("resolve-candidate-btn").addEventListener("click", async () => {
@@ -532,6 +594,9 @@ function renderResistTable(rows) {
 document.getElementById("character-select").addEventListener("change", async (e) => {
   state.character = e.target.value;
   state.selectedSlot = 0;
+  document.getElementById("new-items-status").textContent = "";
+  document.getElementById("new-items-list").hidden = true;
+  document.getElementById("new-items-list").innerHTML = "";
   await loadEquipped();
   await loadProfile();
 });

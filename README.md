@@ -47,17 +47,28 @@ launch from using the same port.
   summary reports exactly how many of each were skipped. The result
   replaces this character's current priorities and is saved immediately,
   same as setting stars by hand.
+- **Check for new items.** Click "Check for new items" in the Candidate
+  Item panel to diff your current stash/backpack against a snapshot from
+  the last time you checked, and get a clickable list of whatever's new —
+  no typing DBR paths for stuff you actually just found. Not instant (it
+  only sees what Grim Dawn has actually written to the save file — leaving
+  an area, opening the menu, autosave, etc, not the moment you pick
+  something up), and it only looks at your personal inventory bags, not
+  the shared stash. First click on a character just sets the baseline;
+  the list only shows up from the second check onward.
 
 ## Not built yet
 
-- **Clipboard/live item capture.** The dream workflow — drop an item
-  in-game, Ctrl+C its tooltip, hit a button here and get an instant
-  comparison — needs a parser for Grim Dawn's actual tooltip text (e.g.
-  "+18% Fire Damage", "24% Chance for X Bleeding Damage") back into the
-  internal stat IDs. That's real, separate work (GD's tooltip phrasing
-  isn't 1:1 documented anywhere we can just import) and needs a real copied
-  tooltip to build against. For now, candidate items are entered by DBR
-  record path in the "Candidate Item" panel.
+- **Live item capture while playing.** The actual "hover an item, get an
+  instant comparison, no clicking anything here" workflow needs either a
+  parser for Grim Dawn's copy-to-clipboard item text (only available via
+  linking an item into multiplayer chat — not usable in solo play, and
+  the exact stat-line phrasing isn't documented anywhere to build a
+  parser against without a real sample) or a live memory hook into the
+  running game (the same category of technique overlay/trainer tools use
+  — DLL injection, real crash risk, antivirus flags it, breaks on every
+  game patch). "Check for new items" above is the safe middle ground:
+  same end result once the save file catches up, none of that risk.
 - **Per-skill priority and mastery scoring.** grim_gleaner profiles carry
   `skill_weights` and `masteries` for scoring skill-modifier items and
   mastery bonuses; importing a profile reports how many of each it found
