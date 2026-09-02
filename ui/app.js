@@ -49,7 +49,20 @@ let state = {
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+  if (!res.ok) {
+    // Every error response from this server is JSON { error: "..." } — surface
+    // that actual message instead of just the status code, since the status
+    // alone ("500") gives no way to tell a save-parser failure apart from a
+    // missing file or a malformed request.
+    let detail = "";
+    try {
+      const body = await res.json();
+      if (body && body.error) detail = `: ${body.error}`;
+    } catch {
+      // response body wasn't JSON (or was empty) — fall back to just the status
+    }
+    throw new Error(`${path} -> ${res.status}${detail}`);
+  }
   return res.json();
 }
 
@@ -136,9 +149,24 @@ document.getElementById("save-dir-apply-btn").addEventListener("click", async ()
 
 async function loadEquipped() {
   if (!state.character) return;
-  const data = await api(`/api/equipped/${encodeURIComponent(state.character)}`);
-  state.equipped = data.items || [];
-  state.baselineTotals = data.totals || {};
+  const warning = document.getElementById("equipped-warning");
+  warning.hidden = true;
+  try {
+    const data = await api(`/api/equipped/${encodeURIComponent(state.character)}`);
+    state.equipped = data.items || [];
+    state.baselineTotals = data.totals || {};
+  } catch (err) {
+    // Previously unhandled here — a failure (e.g. the save parser choking on
+    // this character's player.gdc) surfaced only as a console rejection,
+    // while the slot list still rendered every slot as "(empty)", which
+    // looks identical to genuinely having nothing equipped. Show the real
+    // reason instead of silently pretending the character has no gear.
+    console.error(err);
+    state.equipped = [];
+    state.baselineTotals = {};
+    warning.hidden = false;
+    warning.textContent = "Could not read this character's equipped gear — " + err.message;
+  }
   renderSlotSelect();
   renderItemA();
 }
@@ -355,16 +383,21 @@ document.getElementById("resolve-candidate-btn").addEventListener("click", async
   const suffix_name = document.getElementById("candidate-suffix").value.trim();
   if (!base_name) return alert("Enter a base item name/path first.");
 
-  const item = await api("/api/resolve-item", {
-    method: "POST",
-    body: JSON.stringify({
-      slot_index: 0,
-      base_name, prefix_name, suffix_name,
-      modifier_name: "", relic_bonus: "", component_name: "", augment_name: "",
-    }),
-  });
-  state.candidateItem = item;
-  renderItemB();
+  try {
+    const item = await api("/api/resolve-item", {
+      method: "POST",
+      body: JSON.stringify({
+        slot_index: 0,
+        base_name, prefix_name, suffix_name,
+        modifier_name: "", relic_bonus: "", component_name: "", augment_name: "",
+      }),
+    });
+    state.candidateItem = item;
+    renderItemB();
+  } catch (err) {
+    console.error(err);
+    alert("Could not resolve that item — " + err.message);
+  }
 });
 
 function renderItemB() {
@@ -406,18 +439,23 @@ document.getElementById("compare-btn").addEventListener("click", async () => {
   const itemB = state.candidateItem;
   if (!itemB) return alert("Resolve a candidate item first.");
 
-  const result = await api("/api/compare", {
-    method: "POST",
-    body: JSON.stringify({
-      weights: state.weights,
-      baseline_totals: state.baselineTotals,
-      item_a_stats: (itemA && itemA.stats) || {},
-      item_b_stats: itemB.stats || {},
-    }),
-  });
+  try {
+    const result = await api("/api/compare", {
+      method: "POST",
+      body: JSON.stringify({
+        weights: state.weights,
+        baseline_totals: state.baselineTotals,
+        item_a_stats: (itemA && itemA.stats) || {},
+        item_b_stats: itemB.stats || {},
+      }),
+    });
 
-  renderVerdict(result, itemA, itemB);
-  renderResistTable(result.resist_impact);
+    renderVerdict(result, itemA, itemB);
+    renderResistTable(result.resist_impact);
+  } catch (err) {
+    console.error(err);
+    alert("Compare failed — " + err.message);
+  }
 });
 
 function renderVerdict(result, itemA, itemB) {
