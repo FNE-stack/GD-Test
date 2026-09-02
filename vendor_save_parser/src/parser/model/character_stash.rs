@@ -15,7 +15,11 @@ pub struct CharacterStash {
 
 impl Readable for CharacterStash {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        reader.start_block_with_version(4, 6)?;
+        // Not start_block_with_version: cross-checked against gd-edit
+        // (https://github.com/Odie/gd-edit) — this block has no
+        // version-gated fields at all.
+        reader.start_block(4)?;
+        let _version = reader.read_int()?;
 
         let stash_tabs_purchased = reader.read_int()?;
         let mut tabs = Vec::new();

@@ -26,7 +26,20 @@ pub struct Inventory {
 
 impl Readable for Inventory {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        reader.start_block_with_version(3, 4)?;
+        // Not start_block_with_version: this block's version has been
+        // observed as high as 11 in the wild (this parser previously only
+        // accepted exactly 4), but cross-checked against gd-edit
+        // (https://github.com/Odie/gd-edit, an actively-maintained,
+        // format-accurate save editor) — its read-block3 reads this exact
+        // same field sequence (has-data flag, sack count/focused/selected,
+        // sacks, use-alt-weaponset flag, 12 equipment slots, two 2-item
+        // weapon sets) with no version-gated fields anywhere in the
+        // function. The version is stored but never changes what bytes
+        // come next, so asserting a specific value here was only ever
+        // going to reject saves from a version bump that changed nothing
+        // this struct reads.
+        reader.start_block(3)?;
+        let _version = reader.read_int()?;
 
         let flag = reader.read_byte()?;
         let result = if flag != 0 {

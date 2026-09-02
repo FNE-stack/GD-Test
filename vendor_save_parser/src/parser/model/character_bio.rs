@@ -21,7 +21,13 @@ pub struct CharacterBio {
 
 impl Readable for CharacterBio {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        reader.start_block_with_version(2, 8)?;
+        // Not start_block_with_version: cross-checked against gd-edit
+        // (https://github.com/Odie/gd-edit) — this block has no
+        // version-gated fields at all, so asserting a specific version
+        // number here only risked rejecting saves the field layout itself
+        // never actually changed for.
+        reader.start_block(2)?;
+        let _version = reader.read_int()?;
 
         let level = reader.read_int()?;
         let experience = reader.read_int()?;

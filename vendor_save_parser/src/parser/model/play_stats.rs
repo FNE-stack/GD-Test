@@ -2,7 +2,7 @@ use std::array;
 
 use serde::{Deserialize, Serialize};
 
-use crate::util::Result;
+use crate::util::{CustomError, Result};
 
 use super::super::{Readable, Parser};
 
@@ -53,7 +53,23 @@ pub struct PlayStats {
 
 impl Readable for PlayStats {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        reader.start_block_with_version(16, 11)?;
+        // Not start_block_with_version: cross-checked against gd-edit
+        // (https://github.com/Odie/gd-edit), whose equivalent block gates
+        // its trailing fields (already all read below - skills-map,
+        // endless-souls/essence, difficulty-skip) on "version >= 11", not
+        // "version == 11" — accepting anything past 11 too, matching gd-
+        // edit, rather than rejecting it outright. A version *below* 11
+        // genuinely lacks those trailing fields (this isn't a case like
+        // Inventory/etc where the version turned out not to matter at all),
+        // so that direction is still a hard error rather than silently
+        // guessed at.
+        reader.start_block(16)?;
+        let version = reader.read_int()?;
+        if version < 11 {
+            return Err(CustomError::new(format!(
+                "play stats block version: expected >= 11, found {version}"
+            )));
+        }
 
         let play_time = reader.read_int()?;
         let deaths = reader.read_int()?;
