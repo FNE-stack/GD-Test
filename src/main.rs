@@ -10,6 +10,14 @@
 //!     catalog data, vendored under data/catalog.
 //!   - grim-save-parser (https://github.com/nbak/grim-save-parser) —
 //!     Grim Dawn save-file (.gdc) parsing, vendored under vendor_save_parser.
+//!
+//! `windows_subsystem = "windows"` below means no console window pops up
+//! when double-clicking the exe — normal for a local-server-plus-browser
+//! app. The tradeoff: stdout/stderr go nowhere by default (no terminal to
+//! print to), so the one real startup-failure case (bad/missing data/
+//! folder) is reported via a native message box instead of eprintln!,
+//! otherwise it would fail completely silently.
+#![windows_subsystem = "windows"]
 
 mod catalog;
 mod resolve;
@@ -31,12 +39,11 @@ fn main() {
     let catalog = match catalog::Catalog::load(&catalog_dir) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!(
-                "Failed to load item catalog from {}: {e}\n\
+            fatal_error(&format!(
+                "Failed to load item catalog from {}:\n\n{e}\n\n\
                  Make sure the data/catalog folder is next to the .exe.",
                 catalog_dir.display()
-            );
-            wait_for_enter();
+            ));
             std::process::exit(1);
         }
     };
@@ -80,14 +87,30 @@ fn exe_relative_dir(rel: &str) -> PathBuf {
 }
 
 fn open_browser(url: &str) -> std::io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
     std::process::Command::new("cmd")
         .args(["/C", "start", "", url])
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map(|_| ())
 }
 
-fn wait_for_enter() {
-    use std::io::Read;
-    println!("Press Enter to exit...");
-    let _ = std::io::stdin().read(&mut [0u8]);
+/// Shows a native message box — the only way to surface a startup error to
+/// the user once the app has no console (see the windows_subsystem note at
+/// the top of this file).
+fn fatal_error(message: &str) {
+    use std::iter::once;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+
+    let wide_message: Vec<u16> = message.encode_utf16().chain(once(0)).collect();
+    let wide_title: Vec<u16> = "GD Gear Compare".encode_utf16().chain(once(0)).collect();
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            wide_message.as_ptr(),
+            wide_title.as_ptr(),
+            MB_OK | MB_ICONERROR,
+        );
+    }
 }
