@@ -38,7 +38,16 @@ pub struct CharacterInfo {
 
 impl Readable for CharacterInfo {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        reader.start_block_with_version(1, 5)?;
+        // Not start_block_with_version: cross-checked against gd-edit
+        // (https://github.com/Odie/gd-edit), whose equivalent block reads
+        // an extra int32 only for versions 2-4 (a field this struct never
+        // had) and the loot-filter array only for version 5+ — since
+        // loot_mode above already reads "whatever's left in the block"
+        // instead of a fixed count, an unexpected version 2-4's extra int32
+        // just gets silently absorbed into loot_mode's bytes (harmless,
+        // since nothing reads its contents) rather than desyncing the read.
+        reader.start_block(1)?;
+        let _version = reader.read_int()?;
 
         let is_in_main_quest = reader.read_byte()?;
         let has_been_in_game = reader.read_byte()?;

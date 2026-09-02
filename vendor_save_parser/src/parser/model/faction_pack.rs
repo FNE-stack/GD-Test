@@ -15,7 +15,11 @@ pub struct FactionPack {
 
 impl Readable for FactionPack {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        reader.start_block_with_version(13, 5)?;
+        // Not start_block_with_version: cross-checked against gd-edit
+        // (https://github.com/Odie/gd-edit) — this block has no
+        // version-gated fields at all.
+        reader.start_block(13)?;
+        let _version = reader.read_int()?;
 
         let faction = reader.read_int()?;
         let factions = Vec::read_from(reader)?;

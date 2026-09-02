@@ -17,7 +17,11 @@ pub struct RespawnList {
 
 impl Readable for RespawnList {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        reader.start_block_with_version(5, 1)?;
+        // Not start_block_with_version: cross-checked against gd-edit
+        // (https://github.com/Odie/gd-edit) — this block has no
+        // version-gated fields at all.
+        reader.start_block(5)?;
+        let _version = reader.read_int()?;
 
         let uids = array::try_from_fn(|_| Vec::read_from(reader))?;
         let spawn = array::try_from_fn(|_| UID::read_from(reader))?;
