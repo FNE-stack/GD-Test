@@ -5,12 +5,58 @@ const SLOT_LABELS = [
   "Belt", "Amulet", "Ring 1", "Ring 2", "Medal", "Weapon/Off-hand",
 ];
 
-const DEFAULT_STATS = [
+// Resistances are always shown first and default to max priority (4 stars) —
+// in Grim Dawn, capping resistances is close to a hard requirement before
+// raw damage matters at all, so we don't make the user remember to set these.
+const RESISTANCE_STATS = [
   "fire_resistance", "cold_resistance", "lightning_resistance",
   "aether_resistance", "chaos_resistance", "vitality_resistance",
   "poison_acid_resistance", "physical_resistance", "pierce_resistance",
-  "total_health", "armor", "defensive_ability", "offensive_ability",
+  "bleeding_resistance",
 ];
+
+// Grouped so "+ Add stat" is a pick-list, not a free-typed property_id —
+// property_id names come straight from the vendored grim_gleaner catalog.
+const STAT_CATALOG = {
+  "Survivability": [
+    "total_health", "armor", "armor_percent", "defensive_ability",
+    "physique", "flat_health_regen", "percent_health_regen",
+    "flat_life_leech_percent",
+  ],
+  "Offense — General": [
+    "offensive_ability", "offensive_ability_percent", "attack_speed",
+    "casting_speed", "critical_damage", "damage_conversion",
+  ],
+  "Offense — Physical / Pierce": [
+    "flat_physical_damage", "physical_damage_percent",
+    "flat_pierce_damage", "pierce_damage_percent",
+  ],
+  "Offense — Elemental": [
+    "flat_fire_damage", "fire_damage_percent",
+    "flat_cold_damage", "cold_damage_percent",
+    "flat_lightning_damage", "lightning_damage_percent",
+    "flat_elemental_damage", "elemental_damage_percent",
+    "flat_electrocute_damage", "electrocute_damage_percent",
+    "flat_frostburn_damage", "frostburn_damage_percent",
+    "flat_burn_damage", "burn_damage_percent",
+  ],
+  "Offense — Other Damage Types": [
+    "flat_acid_damage", "acid_damage_percent",
+    "flat_aether_damage", "aether_damage_percent",
+    "flat_chaos_damage", "chaos_damage_percent",
+    "flat_vitality_damage", "vitality_damage_percent",
+    "flat_vitality_decay_damage", "flat_poison_damage",
+    "flat_bleeding_damage", "bleeding_damage_percent",
+    "flat_internal_trauma_damage", "internal_trauma_damage_percent",
+  ],
+  "Resistances (max cap)": [
+    "maximum_fire_resistance", "maximum_cold_resistance",
+    "maximum_lightning_resistance", "maximum_aether_resistance",
+    "maximum_chaos_resistance", "maximum_vitality_resistance",
+    "maximum_poison_acid_resistance", "maximum_pierce_resistance",
+    "maximum_bleeding_resistance", "maximum_all_resistance",
+  ],
+};
 
 let state = {
   character: null,
@@ -98,13 +144,31 @@ function renderItemA() {
 
 // ---------- Priority weights ----------
 
+function ensureResistanceDefaults() {
+  // Resistances default to 4 stars (max priority) unless the user has
+  // already touched them — capping resist is close to a hard requirement
+  // in Grim Dawn, so we don't make the user remember to set this.
+  for (const stat of RESISTANCE_STATS) {
+    if (!(stat in state.weights)) state.weights[stat] = 4;
+  }
+}
+
 function renderWeights() {
+  ensureResistanceDefaults();
   const list = document.getElementById("weights-list");
   list.innerHTML = "";
-  const stats = Object.keys(state.weights).length ? Object.keys(state.weights) : DEFAULT_STATS;
-  for (const stat of stats) {
-    if (!(stat in state.weights)) state.weights[stat] = 0;
+
+  list.appendChild(el("h3", { class: "weights-subhead", text: "Resistances" }));
+  for (const stat of RESISTANCE_STATS) {
     list.appendChild(weightRow(stat));
+  }
+
+  const otherStats = Object.keys(state.weights).filter((s) => !RESISTANCE_STATS.includes(s));
+  if (otherStats.length) {
+    list.appendChild(el("h3", { class: "weights-subhead", text: "Other Priorities" }));
+    for (const stat of otherStats) {
+      list.appendChild(weightRow(stat));
+    }
   }
 }
 
@@ -122,6 +186,15 @@ function weightRow(stat) {
     stars.appendChild(star);
   }
   row.appendChild(stars);
+  if (!RESISTANCE_STATS.includes(stat)) {
+    const remove = el("span", { class: "remove-stat", text: "✕", title: "Remove" });
+    remove.addEventListener("click", () => {
+      delete state.weights[stat];
+      renderWeights();
+      saveProfile();
+    });
+    row.appendChild(remove);
+  }
   return row;
 }
 
@@ -130,12 +203,38 @@ function prettyStat(id) {
 }
 
 document.getElementById("add-stat-btn").addEventListener("click", () => {
-  const name = prompt("Stat property_id (e.g. fire_resistance, offensive_ability):");
-  if (name) {
-    state.weights[name.trim()] = 1;
-    renderWeights();
-    saveProfile();
+  openStatPicker();
+});
+
+function openStatPicker() {
+  const modal = document.getElementById("stat-picker-modal");
+  const body = document.getElementById("stat-picker-body");
+  body.innerHTML = "";
+  for (const [group, stats] of Object.entries(STAT_CATALOG)) {
+    body.appendChild(el("h4", { text: group }));
+    const grid = el("div", { class: "stat-picker-grid" });
+    for (const stat of stats) {
+      const already = stat in state.weights;
+      const btn = el("button", {
+        type: "button",
+        class: "stat-pick-btn" + (already ? " already-added" : ""),
+        text: prettyStat(stat) + (already ? " ✓" : ""),
+      });
+      btn.addEventListener("click", () => {
+        if (!(stat in state.weights)) state.weights[stat] = 2;
+        renderWeights();
+        saveProfile();
+        modal.hidden = true;
+      });
+      grid.appendChild(btn);
+    }
+    body.appendChild(grid);
   }
+  modal.hidden = false;
+}
+
+document.getElementById("stat-picker-close").addEventListener("click", () => {
+  document.getElementById("stat-picker-modal").hidden = true;
 });
 
 async function loadProfile() {
@@ -238,12 +337,23 @@ function renderVerdict(result, itemA, itemB) {
   const scoreDelta = result.item_b.score - result.item_a.score;
   const overcapCount = result.resist_impact.filter((r) => r.over_cap).length;
 
+  // Resistances are always top priority: any resist that drops and ends
+  // *under* cap after the swap counts against the item regardless of how
+  // good its damage score looks. Overcap resist loss (you were wasting the
+  // excess anyway) doesn't count against it.
+  const uncappedResistLoss = result.resist_impact
+    .filter((r) => r.delta < 0 && !r.was_over_cap_before)
+    .reduce((sum, r) => sum - r.delta, 0);
+
   let cls = "keep-a";
   let headline = `Keep "${itemA ? itemA.display_name : "current item"}"`;
 
   if (dangerous) {
     cls = "danger";
     headline = "Caution — this swap leaves a resistance at or below 0%";
+  } else if (uncappedResistLoss >= 10) {
+    cls = "keep-a";
+    headline = `Keep "${itemA ? itemA.display_name : "current item"}" — resistance drop outweighs the damage gain`;
   } else if (scoreDelta > 5) {
     cls = "equip-b";
     headline = `Equip "${itemB.display_name}"`;

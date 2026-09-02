@@ -22,6 +22,24 @@ actually play on.
   survivability impact — so a shinier fire-damage ring that pushes you over
   your resist cap (wasted) or under 0% (dangerous) gets flagged, not just
   graded higher.
+- Resistances are always treated as top priority by default (default to
+  4 stars, and the verdict downweights a swap that drops an uncapped
+  resistance even if the raw damage score looks better) — capping resist is
+  close to a hard requirement in Grim Dawn before raw damage matters much.
+
+## Not built yet
+
+- **Clipboard/live item capture.** The dream workflow — drop an item
+  in-game, Ctrl+C its tooltip, hit a button here and get an instant
+  comparison — needs a parser for Grim Dawn's actual tooltip text (e.g.
+  "+18% Fire Damage", "24% Chance for X Bleeding Damage") back into the
+  internal stat IDs. That's real, separate work (GD's tooltip phrasing
+  isn't 1:1 documented anywhere we can just import) and needs a real copied
+  tooltip to build against. For now, candidate items are entered by DBR
+  record path in the "Candidate Item" panel.
+- **grim_gleaner profile import.** Pulling in an existing grim_gleaner
+  priority profile so you don't have to re-set weights here. Needs a real
+  profile file to build the importer against.
 
 ## Requirements to run the built .exe
 

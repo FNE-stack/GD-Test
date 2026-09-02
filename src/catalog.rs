@@ -38,7 +38,13 @@ impl Catalog {
 
         Ok(Catalog {
             equipment_by_path: index_by_record_path(&equipment),
-            affixes_by_path: index_by_record_path(&affixes),
+            // affixes.json has a different top-level shape from the other
+            // four files: {"affixes": [{ "tiers": [...] }]} rather than
+            // {"items": [{ "variants": [...] }]}, and each tier's own
+            // "properties" carry the real per-magnitude attribute values
+            // (the affix-level "variants" array is a summarized rollup with
+            // attributes stripped out, not usable for stat resolution).
+            affixes_by_path: index_affixes_by_record_path(&affixes),
             relics_by_path: index_by_record_path(&relics),
             augments_by_path: index_by_record_path(&augments),
             components_by_path: index_by_record_path(&components),
@@ -87,6 +93,38 @@ fn index_by_record_path(catalog: &Value) -> HashMap<String, Value> {
                     m.remove("variants");
                     if let Value::Object(variant_obj) = variant.clone() {
                         for (k, v) in variant_obj {
+                            m.insert(k, v);
+                        }
+                    }
+                }
+                map.insert(path.to_string(), merged);
+            }
+        }
+    }
+    map
+}
+
+/// affixes.json indexer: top-level key is "affixes", each affix has "tiers"
+/// (one per source DBR, carrying the real attribute values) rather than
+/// "items"/"variants". See the comment in `Catalog::load` for why this is
+/// a separate code path from `index_by_record_path`.
+fn index_affixes_by_record_path(catalog: &Value) -> HashMap<String, Value> {
+    let mut map = HashMap::new();
+    let Some(affixes) = catalog.get("affixes").and_then(|v| v.as_array()) else {
+        return map;
+    };
+    for affix in affixes {
+        let Some(tiers) = affix.get("tiers").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        for tier in tiers {
+            if let Some(path) = tier.get("record_path").and_then(|v| v.as_str()) {
+                let mut merged = affix.clone();
+                if let Value::Object(ref mut m) = merged {
+                    m.remove("tiers");
+                    m.remove("variants");
+                    if let Value::Object(tier_obj) = tier.clone() {
+                        for (k, v) in tier_obj {
                             m.insert(k, v);
                         }
                     }

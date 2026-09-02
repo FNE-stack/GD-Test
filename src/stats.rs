@@ -40,10 +40,20 @@ pub const SURVIVAL_STATS: &[&str] = &[
 /// Default resistance cap in Grim Dawn (before augment/skill-based increases).
 pub const DEFAULT_RESIST_CAP: f64 = 80.0;
 
-/// Flat map of property_id -> summed numeric value for one item.
-/// Percent and flat variants of the same property_id are summed together
-/// (grim_gleaner's catalog already separates e.g. "armor" vs "armor_percent"
-/// as distinct property_ids, so no unit-mixing here).
+/// Attribute keys observed across grim_gleaner's whole catalog (equipment,
+/// affixes, relics, augments, components — verified by scanning all five
+/// files) that represent a single core magnitude rather than a qualifier.
+/// "value"/"percent"/"flat" all mean "the number", just from different
+/// source DBR fields, so they collapse onto the bare property_id. Every
+/// other numeric key (chance_percent, reduction_flat, skill_level, duration_*,
+/// component, ...) is kept but suffixed onto the property_id so it isn't
+/// silently dropped or wrongly merged into an unrelated number.
+const PRIMARY_MAGNITUDE_KEYS: &[&str] = &["value", "percent", "flat"];
+
+/// Flat map of stat_key -> summed numeric value for one item, where
+/// stat_key is usually the bare property_id (for the primary magnitude)
+/// and `property_id:attribute_key` for secondary attributes (chance,
+/// duration, reduction, skill_level, etc).
 pub fn extract_stats(resolved: &Value) -> HashMap<String, f64> {
     let mut stats = HashMap::new();
     let Some(properties) = resolved.get("properties").and_then(|v| v.as_array()) else {
@@ -56,30 +66,49 @@ pub fn extract_stats(resolved: &Value) -> HashMap<String, f64> {
         let Some(attrs) = prop.get("attributes").and_then(|v| v.as_object()) else {
             continue;
         };
-        // attributes can be "value", "percent", or min/max damage pairs.
-        // For scoring we take the most representative single number:
-        // prefer "value"/"percent", else average of min/max.
-        let value = if let Some(v) = attrs.get("value").and_then(parse_num) {
-            v
-        } else if let Some(v) = attrs.get("percent").and_then(parse_num) {
-            v
-        } else {
-            let min = attrs
-                .iter()
-                .find(|(k, _)| k.ends_with("_min"))
-                .and_then(|(_, v)| parse_num(v));
-            let max = attrs
-                .iter()
-                .find(|(k, _)| k.ends_with("_max"))
-                .and_then(|(_, v)| parse_num(v));
-            match (min, max) {
-                (Some(a), Some(b)) => (a + b) / 2.0,
-                (Some(a), None) => a,
-                (None, Some(b)) => b,
-                (None, None) => continue,
+
+        // Primary magnitude: prefer value/percent/flat directly; otherwise
+        // average a *_min/*_max pair (e.g. damage_min/damage_max,
+        // percent_min/percent_max) into the bare property_id.
+        let primary = PRIMARY_MAGNITUDE_KEYS
+            .iter()
+            .find_map(|k| attrs.get(*k).and_then(parse_num))
+            .or_else(|| {
+                let min = attrs
+                    .iter()
+                    .find(|(k, _)| k.ends_with("_min"))
+                    .and_then(|(_, v)| parse_num(v));
+                let max = attrs
+                    .iter()
+                    .find(|(k, _)| k.ends_with("_max"))
+                    .and_then(|(_, v)| parse_num(v));
+                match (min, max) {
+                    (Some(a), Some(b)) => Some((a + b) / 2.0),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                }
+            });
+        if let Some(v) = primary {
+            *stats.entry(id.to_string()).or_insert(0.0) += v;
+        }
+
+        // Every other numeric attribute key: keep it, qualified, so chance
+        // percents, reductions, skill levels, and durations aren't lost.
+        let min_max_keys_used_as_primary =
+            primary.is_some() && !PRIMARY_MAGNITUDE_KEYS.iter().any(|k| attrs.contains_key(*k));
+        for (key, val) in attrs {
+            if PRIMARY_MAGNITUDE_KEYS.contains(&key.as_str()) {
+                continue;
             }
-        };
-        *stats.entry(id.to_string()).or_insert(0.0) += value;
+            if min_max_keys_used_as_primary && (key.ends_with("_min") || key.ends_with("_max")) {
+                continue; // already folded into the primary magnitude above
+            }
+            if let Some(v) = parse_num(val) {
+                let qualified = format!("{id}:{key}");
+                *stats.entry(qualified).or_insert(0.0) += v;
+            }
+        }
     }
     stats
 }
@@ -151,8 +180,13 @@ pub struct ResistImpact {
     /// true if `after_total` exceeds the resist cap (wasted overcap, unless
     /// a maximum_*_resistance stat is also present to raise the cap)
     pub over_cap: bool,
+    /// true if `current_total` already exceeded the cap before the swap
+    /// (so losing some of it here isn't actually a real loss — it was
+    /// wasted excess already)
+    pub was_over_cap_before: bool,
     /// true if `after_total` is at or below 0 (dangerous, taking bonus damage)
     pub dangerous: bool,
+    pub effective_cap: f64,
 }
 
 /// Computes resistance deltas: current baseline totals (across all equipped
@@ -180,7 +214,9 @@ pub fn resist_impact(
             after_total: after,
             delta: after - current,
             over_cap: after > effective_cap,
+            was_over_cap_before: current > effective_cap,
             dangerous: after <= 0.0,
+            effective_cap,
         });
     }
     out

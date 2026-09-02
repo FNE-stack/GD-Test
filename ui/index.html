@@ -20,7 +20,7 @@
 
   <main>
     <section id="weights-panel" class="panel">
-      <h2>Priorities <span class="hint">(0 = ignore, 4 = top priority)</span></h2>
+      <h2>Priorities <span class="hint">(0 = ignore, 4 = top priority — resistances default to max)</span></h2>
       <div id="weights-list" class="weights-list"></div>
       <button id="add-stat-btn" type="button">+ Add stat</button>
     </section>
@@ -39,7 +39,11 @@
 
         <div class="item-column" id="column-b">
           <h3>Candidate Item</h3>
-          <p class="hint">Enter the base item and any prefix/suffix DBR names, or paste them if you know the exact record path.</p>
+
+          <label>Paste item text (Ctrl+C in-game) <span class="hint">— coming soon</span></label>
+          <input id="candidate-clipboard" type="text" placeholder="Not wired up yet — use the fields below for now" disabled />
+
+          <p class="hint" style="margin-top:0.9rem;">Enter the base item and any prefix/suffix DBR names, or paste them if you know the exact record path.</p>
           <label>Base item name</label>
           <input id="candidate-base" type="text" placeholder="e.g. records/items/gearhead/b001_helm.dbr" />
           <label>Prefix</label>
@@ -67,6 +71,14 @@
       </div>
     </section>
   </main>
+
+  <div id="stat-picker-modal" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <h3>Add a stat priority</h3>
+      <div id="stat-picker-body"></div>
+      <button id="stat-picker-close" type="button">Close</button>
+    </div>
+  </div>
 
   <footer>
     <p>Local-only tool. Item/affix data vendored from
