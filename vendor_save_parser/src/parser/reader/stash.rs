@@ -52,6 +52,9 @@ impl<T: Read> Parser for StashFileReader<T> {
     fn inc_pos(&mut self, v: u64) {
         self.cur_pos = self.cur_pos + v;
     }
+    fn block_depth(&self) -> usize {
+        self.blocks.len()
+    }
     fn set_key(&mut self, key: u32) {
         self.key = key;
     }

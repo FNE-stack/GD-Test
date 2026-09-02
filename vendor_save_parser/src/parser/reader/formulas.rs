@@ -38,6 +38,9 @@ impl<T: Read> Parser for FormulasReader<T> {
         0
     }
     fn inc_pos(&mut self, _v: u64) {}
+    fn block_depth(&self) -> usize {
+        0
+    }
     fn set_key(&mut self, _key: u32) {}
     fn pop_block(&mut self) -> Result<Block> {
         Ok(Block::new())
