@@ -280,6 +280,73 @@ async function saveProfile() {
   });
 }
 
+// ---------- grim_gleaner profile import ----------
+// Converts an exported grim_gleaner build-profile JSON file into this app's
+// weights format server-side (see src/import.rs) and persists it as the
+// current character's profile. grim_gleaner-only concepts this app doesn't
+// use yet (skill_weights, masteries) are reported back in the summary
+// rather than silently vanishing.
+
+document.getElementById("import-gg-btn").addEventListener("click", () => {
+  document.getElementById("import-gg-file").click();
+});
+
+document.getElementById("import-gg-file").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  const status = document.getElementById("import-gg-status");
+  if (!file) return;
+  if (!state.character) {
+    status.className = "status-error";
+    status.textContent = "Pick a character first.";
+    e.target.value = "";
+    return;
+  }
+  status.className = "hint";
+  status.textContent = "Importing…";
+  try {
+    const text = await file.text();
+    const res = await fetch(
+      `/api/profile/${encodeURIComponent(state.character)}/import-grim-gleaner`,
+      { method: "POST", body: text }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      status.className = "status-error";
+      status.textContent = "❌ " + (data.error || "Import failed.");
+      return;
+    }
+    state.weights = data.weights || {};
+    renderWeights();
+
+    const s = data.summary || {};
+    const notes = [];
+    if (s.resistance_overrides_applied) {
+      notes.push(`${s.resistance_overrides_applied} resistance-cap override(s) applied`);
+    }
+    if (s.skipped_skill_weight_count) {
+      notes.push(`${s.skipped_skill_weight_count} skill weight(s) not imported (not supported yet)`);
+    }
+    if (s.skipped_mastery_count) {
+      const word = s.skipped_mastery_count === 1 ? "mastery" : "masteries";
+      notes.push(`${s.skipped_mastery_count} ${word} not imported (not supported yet)`);
+    }
+    if (s.invalid_weight_count) {
+      notes.push(`${s.invalid_weight_count} invalid weight value(s) skipped`);
+    }
+
+    status.className = "status-ok";
+    status.textContent =
+      `✓ Imported ${s.imported_stat_count ?? Object.keys(state.weights).length} stat weight(s)` +
+      ` from "${s.profile_name || file.name}"` +
+      (notes.length ? " — " + notes.join("; ") : "");
+  } catch (err) {
+    status.className = "status-error";
+    status.textContent = "❌ " + err.message;
+  } finally {
+    e.target.value = "";
+  }
+});
+
 // ---------- Candidate item ----------
 
 document.getElementById("resolve-candidate-btn").addEventListener("click", async () => {

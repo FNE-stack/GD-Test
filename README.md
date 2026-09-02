@@ -33,6 +33,16 @@ actually play on.
   (redirected Documents, save on another drive, etc), set it manually in
   **⚙ Settings** — validated and persisted to `settings.json`, no restart
   needed.
+- **Import a grim_gleaner profile.** Click "Import grim_gleaner profile…"
+  above the priority tabs and pick a profile JSON exported from
+  grim_gleaner's own UI — its `weights` map ports over directly (same
+  stat_id vocabulary, same vendored catalog), and a `resistance_cap_weights`
+  override (when the source profile had Resistance Cap Mode on) is applied
+  on top. grim_gleaner concepts this app doesn't score yet — per-skill
+  weights and mastery selection — aren't silently dropped; the import
+  summary reports exactly how many of each were skipped. The result
+  replaces this character's current priorities and is saved immediately,
+  same as setting stars by hand.
 
 ## Not built yet
 
@@ -44,9 +54,11 @@ actually play on.
   isn't 1:1 documented anywhere we can just import) and needs a real copied
   tooltip to build against. For now, candidate items are entered by DBR
   record path in the "Candidate Item" panel.
-- **grim_gleaner profile import.** Pulling in an existing grim_gleaner
-  priority profile so you don't have to re-set weights here. Needs a real
-  profile file to build the importer against.
+- **Per-skill priority and mastery scoring.** grim_gleaner profiles carry
+  `skill_weights` and `masteries` for scoring skill-modifier items and
+  mastery bonuses; importing a profile reports how many of each it found
+  but doesn't act on them yet — this app currently only scores the flat
+  stat `weights` map.
 
 ## Requirements to run the built .exe
 

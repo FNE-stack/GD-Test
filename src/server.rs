@@ -3,6 +3,7 @@
 //! saving/loading per-character priority-weight profiles.
 
 use crate::catalog::Catalog;
+use crate::import::import_grim_gleaner_profile;
 use crate::resolve::{resolve_item, sum_all};
 use crate::save_parser;
 use crate::settings::{self, Settings};
@@ -76,6 +77,15 @@ fn handle(
         }
         (Method::Post, "/api/resolve-item") => api_resolve_item(state, body),
         (Method::Post, "/api/compare") => api_compare(state, body),
+        // Must come before the generic POST /api/profile/{name} arm below,
+        // since both prefix-match "/api/profile/" and match arms are tried
+        // in order — this one is the more specific of the two.
+        (Method::Post, path)
+            if path.starts_with("/api/profile/") && path.ends_with("/import-grim-gleaner") =>
+        {
+            let name = &path["/api/profile/".len()..path.len() - "/import-grim-gleaner".len()];
+            api_import_grim_gleaner_profile(state, name, body)
+        }
         (Method::Get, path) if path.starts_with("/api/profile/") => {
             let name = &path["/api/profile/".len()..];
             api_load_profile(state, name)
@@ -234,6 +244,40 @@ fn api_save_profile(
         Ok(_) => json_response(200, &json!({ "ok": true })),
         Err(e) => json_response(500, &json!({ "error": e.to_string() })),
     }
+}
+
+/// Body: a raw grim_gleaner build-profile JSON file (as downloaded/exported
+/// from grim_gleaner's own UI), pasted through unmodified. Converts it to
+/// GD Gear Compare's weights format and persists it as this character's
+/// profile — same file `api_save_profile` writes to — so a page reload
+/// picks it up exactly like a profile set by hand in this app.
+fn api_import_grim_gleaner_profile(
+    state: &Arc<AppState>,
+    character: &str,
+    body: &str,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    let result = match import_grim_gleaner_profile(body) {
+        Ok(r) => r,
+        Err(e) => return json_response(400, &json!({ "error": e })),
+    };
+
+    if let Err(e) = std::fs::create_dir_all(&state.profiles_dir) {
+        return json_response(500, &json!({ "error": e.to_string() }));
+    }
+    let path = state.profiles_dir.join(format!("{character}.json"));
+    let payload = json!({ "weights": result.weights });
+    let text = match serde_json::to_vec_pretty(&payload) {
+        Ok(t) => t,
+        Err(e) => return json_response(500, &json!({ "error": e.to_string() })),
+    };
+    if let Err(e) = std::fs::write(&path, text) {
+        return json_response(500, &json!({ "error": e.to_string() }));
+    }
+
+    json_response(
+        200,
+        &json!({ "ok": true, "weights": result.weights, "summary": result.summary }),
+    )
 }
 
 fn json_response(status: u16, value: &serde_json::Value) -> Response<std::io::Cursor<Vec<u8>>> {

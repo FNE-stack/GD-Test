@@ -129,6 +129,14 @@ fn parse_num(v: &Value) -> Option<f64> {
 /// weighting concept). 0 = ignored, 4 = top priority.
 pub type PrioWeights = HashMap<String, u8>;
 
+/// Bounds for a single star weight. Matches grim_gleaner's own
+/// MIN/MAX_STAT_WEIGHT (domain/profile.py) — kept here as the canonical
+/// range so anything accepting weights from outside the UI (e.g. the
+/// grim_gleaner profile importer) can clamp against the same bounds the
+/// 0-4 star control itself enforces.
+pub const MIN_STAR_WEIGHT: u8 = 0;
+pub const MAX_STAR_WEIGHT: u8 = 4;
+
 /// Weighted-relevance score for one item against a set of priorities.
 /// Mirrors grim_gleaner's "relevance of stats, not their values" approach:
 /// having ANY amount of a 4-star stat counts heavily; the actual roll only
@@ -244,4 +252,286 @@ pub fn resist_impact(
         });
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn map(pairs: &[(&str, f64)]) -> HashMap<String, f64> {
+        pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect()
+    }
+
+    fn weights(pairs: &[(&str, u8)]) -> PrioWeights {
+        pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect()
+    }
+
+    // ---------- extract_stats ----------
+
+    #[test]
+    fn primary_magnitude_prefers_percent_key() {
+        let resolved = json!({
+            "properties": [
+                { "property_id": "fire_resistance", "attributes": { "percent": "24.000000" } }
+            ]
+        });
+        let stats = extract_stats(&resolved);
+        assert_eq!(stats.get("fire_resistance"), Some(&24.0));
+        assert_eq!(stats.len(), 1);
+    }
+
+    #[test]
+    fn primary_magnitude_averages_min_max_pair_when_no_direct_key() {
+        let resolved = json!({
+            "properties": [
+                {
+                    "property_id": "flat_fire_damage",
+                    "attributes": { "damage_min": "20.000000", "damage_max": "60.000000" }
+                }
+            ]
+        });
+        let stats = extract_stats(&resolved);
+        assert_eq!(stats.get("flat_fire_damage"), Some(&40.0));
+    }
+
+    #[test]
+    fn secondary_attributes_are_kept_qualified_not_dropped() {
+        // Neither duration_seconds nor reduction_flat is a primary magnitude
+        // key or a _min/_max pair, so both should survive as
+        // "property_id:attribute_key" rather than being merged or lost.
+        let resolved = json!({
+            "properties": [
+                {
+                    "property_id": "target_resistance_reduction_flat",
+                    "attributes": { "duration_seconds": "5.000000", "reduction_flat": "10.000000" }
+                }
+            ]
+        });
+        let stats = extract_stats(&resolved);
+        assert_eq!(stats.get("target_resistance_reduction_flat"), None);
+        assert_eq!(
+            stats.get("target_resistance_reduction_flat:duration_seconds"),
+            Some(&5.0)
+        );
+        assert_eq!(
+            stats.get("target_resistance_reduction_flat:reduction_flat"),
+            Some(&10.0)
+        );
+    }
+
+    #[test]
+    fn primary_and_secondary_attributes_coexist_on_one_property() {
+        let resolved = json!({
+            "properties": [
+                {
+                    "property_id": "some_proc",
+                    "attributes": { "percent": "15.000000", "chance_percent": "25.000000" }
+                }
+            ]
+        });
+        let stats = extract_stats(&resolved);
+        assert_eq!(stats.get("some_proc"), Some(&15.0));
+        assert_eq!(stats.get("some_proc:chance_percent"), Some(&25.0));
+    }
+
+    #[test]
+    fn repeated_property_id_across_variants_sums() {
+        let resolved = json!({
+            "properties": [
+                { "property_id": "fire_resistance", "attributes": { "percent": "10.000000" } },
+                { "property_id": "fire_resistance", "attributes": { "percent": "6.000000" } }
+            ]
+        });
+        let stats = extract_stats(&resolved);
+        assert_eq!(stats.get("fire_resistance"), Some(&16.0));
+    }
+
+    #[test]
+    fn missing_properties_array_yields_empty_stats() {
+        let resolved = json!({ "display_name": "Nothing Here" });
+        assert!(extract_stats(&resolved).is_empty());
+    }
+
+    // ---------- prio_score ----------
+
+    #[test]
+    fn score_combines_star_weight_and_capped_magnitude_bonus() {
+        let stats = map(&[("fire_resistance", 24.0)]);
+        let w = weights(&[("fire_resistance", 4)]);
+        // 4 stars * 10 + min(24, 50) * 0.1
+        assert!((prio_score(&stats, &w) - 42.4).abs() < 1e-9);
+    }
+
+    #[test]
+    fn zero_weight_never_contributes_even_if_present_on_item() {
+        let stats = map(&[("junk_stat", 100.0)]);
+        let w = weights(&[("junk_stat", 0)]);
+        assert_eq!(prio_score(&stats, &w), 0.0);
+    }
+
+    #[test]
+    fn weighted_stat_missing_from_item_contributes_nothing() {
+        let stats = map(&[]);
+        let w = weights(&[("fire_resistance", 4)]);
+        assert_eq!(prio_score(&stats, &w), 0.0);
+    }
+
+    #[test]
+    fn weighted_stat_present_but_zero_value_contributes_nothing() {
+        let stats = map(&[("cold_resistance", 0.0)]);
+        let w = weights(&[("cold_resistance", 4)]);
+        assert_eq!(prio_score(&stats, &w), 0.0);
+    }
+
+    #[test]
+    fn magnitude_bonus_is_capped_at_fifty() {
+        let stats = map(&[("fire_damage_percent", 999.0)]);
+        let w = weights(&[("fire_damage_percent", 4)]);
+        // bonus should clamp to 50 * 0.1 = 5, not 99.9
+        assert!((prio_score(&stats, &w) - 45.0).abs() < 1e-9);
+    }
+
+    // ---------- letter_grade ----------
+
+    #[test]
+    fn grade_boundaries_match_thresholds() {
+        assert_eq!(letter_grade(0.0, 0.0), "-");
+        assert_eq!(letter_grade(130.0, 100.0), "S++");
+        assert_eq!(letter_grade(129.9, 100.0), "S+");
+        assert_eq!(letter_grade(110.0, 100.0), "S+");
+        assert_eq!(letter_grade(109.9, 100.0), "S");
+        assert_eq!(letter_grade(95.0, 100.0), "S");
+        assert_eq!(letter_grade(80.0, 100.0), "A");
+        assert_eq!(letter_grade(65.0, 100.0), "B");
+        assert_eq!(letter_grade(50.0, 100.0), "C");
+        assert_eq!(letter_grade(30.0, 100.0), "D");
+        assert_eq!(letter_grade(29.9, 100.0), "F");
+    }
+
+    #[test]
+    fn grade_percent_is_clamped_above_two_hundred() {
+        // 300/100*100 = 300%, clamped to 200%, still well above S++.
+        assert_eq!(letter_grade(300.0, 100.0), "S++");
+    }
+
+    // ---------- max_possible_score ----------
+
+    #[test]
+    fn max_possible_score_uses_only_top_five_weights() {
+        let w = weights(&[
+            ("a", 4),
+            ("b", 4),
+            ("c", 3),
+            ("d", 2),
+            ("e", 1),
+            ("f", 1), // 6th nonzero weight, excluded by REALISTIC_HITS_PER_ITEM
+        ]);
+        // (4*10+3)+(4*10+3)+(3*10+3)+(2*10+3)+(1*10+3) = 43+43+33+23+13 = 155
+        assert!((max_possible_score(&w) - 155.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn max_possible_score_ignores_zero_weights() {
+        let w = weights(&[("a", 4), ("ignored", 0)]);
+        assert!((max_possible_score(&w) - 43.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn max_possible_score_is_zero_for_empty_weights() {
+        assert_eq!(max_possible_score(&PrioWeights::new()), 0.0);
+    }
+
+    // ---------- resist_impact (item comparison) ----------
+
+    #[test]
+    fn compare_two_items_score_and_grade_favor_the_higher_priority_item() {
+        // Item A (currently equipped): has nothing the priorities weight.
+        let item_a = map(&[("physique", 50.0)]);
+        // Item B (candidate): a strong roll of the one weighted priority.
+        let item_b = map(&[("fire_resistance", 30.0)]);
+        let w = weights(&[("fire_resistance", 4)]);
+
+        // Mirrors the real /api/compare flow: one max_possible computed
+        // from the priority set, used to grade both items.
+        let max_possible = max_possible_score(&w);
+        let score_a = prio_score(&item_a, &w);
+        let score_b = prio_score(&item_b, &w);
+
+        assert!(score_b > score_a);
+        assert_eq!(letter_grade(score_a, max_possible), "F");
+        assert_eq!(letter_grade(score_b, max_possible), "S");
+    }
+
+    #[test]
+    fn resist_impact_reports_delta_and_effective_cap_with_maximum_bonus() {
+        let baseline = map(&[("fire_resistance", 58.0), ("maximum_fire_resistance", 5.0)]);
+        let removed = map(&[("fire_resistance", 10.0)]); // item A's contribution
+        let added = map(&[("fire_resistance", 30.0)]); // item B's contribution
+
+        let impacts = resist_impact(&baseline, &removed, &added);
+        let fire = impacts
+            .iter()
+            .find(|r| r.stat == "fire_resistance")
+            .expect("fire_resistance row present");
+
+        assert_eq!(fire.current_total, 58.0);
+        assert_eq!(fire.after_total, 78.0); // 58 - 10 + 30
+        assert_eq!(fire.delta, 20.0);
+        assert_eq!(fire.effective_cap, 85.0); // 80 default + 5 bonus
+        assert!(!fire.over_cap);
+        assert!(!fire.was_over_cap_before);
+        assert!(!fire.dangerous);
+    }
+
+    #[test]
+    fn resist_impact_flags_overcap_when_swap_pushes_past_the_cap() {
+        let baseline = map(&[("cold_resistance", 70.0)]);
+        let removed = map(&[]);
+        let added = map(&[("cold_resistance", 20.0)]); // 70 -> 90, cap is 80
+
+        let impacts = resist_impact(&baseline, &removed, &added);
+        let cold = impacts.iter().find(|r| r.stat == "cold_resistance").unwrap();
+        assert_eq!(cold.after_total, 90.0);
+        assert!(cold.over_cap);
+        assert!(!cold.was_over_cap_before);
+        assert!(!cold.dangerous);
+    }
+
+    #[test]
+    fn resist_impact_does_not_penalize_losing_already_wasted_overcap_resist() {
+        let baseline = map(&[("lightning_resistance", 95.0)]); // already over the 80 cap
+        let removed = map(&[("lightning_resistance", 20.0)]); // swap removes some of the excess
+        let added = map(&[]);
+
+        let impacts = resist_impact(&baseline, &removed, &added);
+        let lightning = impacts
+            .iter()
+            .find(|r| r.stat == "lightning_resistance")
+            .unwrap();
+        assert_eq!(lightning.after_total, 75.0);
+        assert!(lightning.was_over_cap_before);
+        assert!(!lightning.over_cap);
+    }
+
+    #[test]
+    fn resist_impact_flags_dangerous_when_swap_drops_resist_to_zero_or_below() {
+        let baseline = map(&[("aether_resistance", 20.0)]);
+        let removed = map(&[("aether_resistance", 25.0)]); // losing more than current has
+        let added = map(&[]);
+
+        let impacts = resist_impact(&baseline, &removed, &added);
+        let aether = impacts.iter().find(|r| r.stat == "aether_resistance").unwrap();
+        assert_eq!(aether.after_total, -5.0);
+        assert!(aether.dangerous);
+    }
+
+    #[test]
+    fn resist_impact_skips_stats_untouched_and_at_zero() {
+        let baseline = map(&[("physical_resistance", 0.0)]);
+        let removed = map(&[]);
+        let added = map(&[]);
+        let impacts = resist_impact(&baseline, &removed, &added);
+        assert!(impacts.iter().all(|r| r.stat != "physical_resistance"));
+    }
 }
