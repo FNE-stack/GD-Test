@@ -4,7 +4,7 @@ use crate::util::Result;
 
 use super::{
     super::{Readable, Parser},
-    Item,
+    Item, UID,
 };
 
 #[derive(Deserialize, Serialize)]
@@ -19,6 +19,9 @@ impl Readable for StashItem {
         let item = Item::read_from(reader)?;
         let x = reader.read_float()?;
         let y = reader.read_float()?;
+        // Same trailing per-item UID as InventoryItem/InventoryEquipment —
+        // confirmed empirically against a real save's stash contents.
+        let _uid = UID::read_from(reader)?;
 
         Ok(StashItem { item, x, y })
     }

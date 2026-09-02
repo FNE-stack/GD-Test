@@ -4,7 +4,7 @@ use crate::util::Result;
 
 use super::{
     super::{Readable, Parser},
-    Item,
+    Item, UID,
 };
 
 #[derive(Deserialize, Serialize)]
@@ -17,6 +17,9 @@ impl Readable for InventoryEquipment {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
         let item = Option::read_from(reader)?;
         let attached = reader.read_byte()?;
+        // Same trailing per-item UID as InventoryItem (see its comment) —
+        // confirmed empirically against a real save's equipped-gear slots.
+        let _uid = UID::read_from(reader)?;
 
         Ok(InventoryEquipment { item, attached })
     }

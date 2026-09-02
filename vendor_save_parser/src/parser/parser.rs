@@ -80,6 +80,8 @@ pub trait Parser {
         ensure_eq(self.read_block_start(&mut b)?, t, "block start")?;
         b.tag = t;
         b.depth = self.block_depth();
+        #[cfg(feature = "trace-blocks")]
+        eprintln!("[trace] enter block tag={t} depth={} pos={}", b.depth, self.get_pos());
 
         self.push_block(b);
         Ok(())
@@ -94,6 +96,8 @@ pub trait Parser {
         ensure_eq(self.read_int()?, v, "version")?;
         b.tag = t;
         b.depth = self.block_depth();
+        #[cfg(feature = "trace-blocks")]
+        eprintln!("[trace] enter block tag={t} depth={} pos={}", b.depth, self.get_pos());
         self.push_block(b);
         Ok(())
     }
@@ -107,11 +111,15 @@ pub trait Parser {
         let version = ensure_contains(self.read_int()?, v, "version")?;
         b.tag = t;
         b.depth = self.block_depth();
+        #[cfg(feature = "trace-blocks")]
+        eprintln!("[trace] enter block tag={t} depth={} pos={} version={version}", b.depth, self.get_pos());
         self.push_block(b);
         Ok(version)
     }
     fn end_block(&mut self) -> Result<()> {
         let b = self.pop_block()?;
+        #[cfg(feature = "trace-blocks")]
+        eprintln!("[trace] exit block tag={} depth={} pos={}", b.tag, b.depth, self.get_pos());
         // block tag/depth identify *which* nested structure failed to close
         // at the right position — the model/*.rs file whose
         // start_block*(tag, ...) call matches `tag` is the one to look at.

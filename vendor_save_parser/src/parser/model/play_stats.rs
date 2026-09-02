@@ -132,6 +132,16 @@ impl Readable for PlayStats {
         let unknown1 = reader.read_int()?;
         let unknown2 = reader.read_int()?;
 
+        // Not currently used by this app, and a real save has been observed
+        // with a few more trailing bytes here than this struct's fields
+        // account for (a small, further version-11-adjacent addition beyond
+        // what gd-edit documents) — consume whatever's left rather than
+        // reject the save or guess at the exact new field.
+        let trailing_len = reader.current_block_end().saturating_sub(reader.get_pos()) as usize;
+        for _ in 0..trailing_len {
+            reader.read_byte()?;
+        }
+
         reader.end_block()?;
 
         Ok(PlayStats {

@@ -103,6 +103,30 @@ the repo root — it looks for both relative to the exe's own location).
 5. Read the verdict: priority-score comparison plus a resistance/cap table
    showing exactly what the swap does to your totals.
 
+## Troubleshooting a save that won't load
+
+The vendored save-parser was written against one snapshot of Grim Dawn's
+`.gdc` format; the game has moved on since (per-item UIDs, grown loot-filter
+arrays, and other small drifts have already turned up in real saves). If
+loading equipped gear fails with a `save parse failed: ...` error, that's
+almost always this — some structure has one more field than the parser
+expects, at some point in the file it hasn't hit before.
+
+`src/bin/debug_parse.rs` is a small dev-only tool for chasing this down
+locally instead of guessing blind against a release build:
+
+```
+cargo run --bin debug_parse --features trace-blocks -- "path\to\_YourCharacter\player.gdc"
+```
+
+It parses the file standalone (with a real console, unlike the shipped
+app) and, with `trace-blocks` enabled, prints every block it enters/exits
+with its tag, nesting depth, and byte position, plus a warning if any
+string or list length decodes to a suspiciously large number — the
+tell-tale sign of a misaligned read. The tag in a `block end position
+(tag=N, ...)` error matches a `start_block*(N, ...)` call in exactly one
+`vendor_save_parser/src/parser/model/*.rs` file, which is where to look.
+
 ## Credits / data sources
 
 This project is a personal fan tool built on top of two open-source,

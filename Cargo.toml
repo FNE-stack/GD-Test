@@ -17,5 +17,11 @@ tiny_http = "0.12"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
 
+[features]
+# Forwards to the vendored parser's own dev-only block tracing (see
+# vendor_save_parser/Cargo.toml). Not used by the shipped app — only by
+# src/bin/debug_parse.rs for diagnosing a real save file locally.
+trace-blocks = ["save-parser/trace-blocks"]
+
 [profile.release]
 opt-level = 2

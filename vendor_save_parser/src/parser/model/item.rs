@@ -24,7 +24,11 @@ pub struct Item {
 
 impl Readable for Item {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
+        #[cfg(feature = "trace-blocks")]
+        eprintln!("[trace] Item start pos={}", reader.get_pos());
         let base_name = String::read_from(reader)?;
+        #[cfg(feature = "trace-blocks")]
+        eprintln!("[trace] Item base_name={base_name:?}");
         let prefix_name = String::read_from(reader)?;
         let suffix_name = String::read_from(reader)?;
         let modifier_name = String::read_from(reader)?;
