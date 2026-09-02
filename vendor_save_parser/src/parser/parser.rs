@@ -18,6 +18,14 @@ pub trait Parser {
     /// parse-error messages with nesting context (see `end_block`), not for
     /// any parsing logic itself.
     fn block_depth(&self) -> usize;
+    /// The declared end position (byte offset) of the innermost currently
+    /// open block, or 0 if none is open. Lets a reader consume "whatever's
+    /// left in this block" instead of a hardcoded field count — useful for
+    /// a trailing field whose exact size isn't load-bearing for this crate
+    /// (e.g. CharacterInfo's loot-filter toggle array, which has grown
+    /// across Grim Dawn patches as new filter categories were added, and
+    /// whose actual byte values this crate never reads).
+    fn current_block_end(&self) -> u64;
 
     fn read_key(&mut self) -> Result<()> {
         let (k, _) = read_exact!(self.get_source(), self, u32);

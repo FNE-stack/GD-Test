@@ -1,7 +1,4 @@
-use std::array;
-
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 
 use crate::util::Result;
 
@@ -11,19 +8,21 @@ use super::super::{Parser, Readable};
 pub struct CharacterInfo {
     texture: String,
     money: u32,
-    // Loot filter settings. Each read byte should be either 0 or 1
-    // Quality
-    // Common, Magical, Rare, Monster Infrequent, Epic, Legendary, Sets, Always Show Uniques
-    // Type
-    // 1h Melee, 2h Melee, 1h Ranged, 2h Ranged, Dagger/Scepter, Caster Off-Hand, Shield, Armor, Accessories, Components
-    // Damage
-    // Physical, Pierce, Fire, Cold, Lightning, Acid, Vitality, Aether, Chaos, Bleed, Pet Bonuses
-    // Player
-    // My Masteries, Other Masteries, Speed, Cooldown Reduction, Crit Damage, Offensive Ability, Defensive Ability, Resistances, Retaliation
-    // Other
-    // Always Show Double Rare
-    #[serde(with = "BigArray")]
-    loot_mode: [u8; 39],
+    // Loot filter settings. Each byte should be either 0 or 1. This used to
+    // be a hand-counted fixed-size array (39 bytes, enumerated by category
+    // below), but Grim Dawn has grown the in-game loot filter's checkbox
+    // categories across patches, and a fixed count silently desyncs the
+    // rest of the parse the next time it grows again. Nothing in this
+    // crate reads these values, so instead of guessing the current count
+    // we just read however many bytes remain in this block — correct
+    // regardless of how many toggles exist now or get added later. Known
+    // categories as of the last time this was counted:
+    // Quality: Common, Magical, Rare, Monster Infrequent, Epic, Legendary, Sets, Always Show Uniques
+    // Type: 1h Melee, 2h Melee, 1h Ranged, 2h Ranged, Dagger/Scepter, Caster Off-Hand, Shield, Armor, Accessories, Components
+    // Damage: Physical, Pierce, Fire, Cold, Lightning, Acid, Vitality, Aether, Chaos, Bleed, Pet Bonuses
+    // Player: My Masteries, Other Masteries, Speed, Cooldown Reduction, Crit Damage, Offensive Ability, Defensive Ability, Resistances, Retaliation
+    // Other: Always Show Double Rare
+    loot_mode: Vec<u8>,
     current_tribute: u32,
     unknown: u32,
     is_in_main_quest: u8,
@@ -54,7 +53,11 @@ impl Readable for CharacterInfo {
         let weapon_swap_enabled = reader.read_byte()?;
         let texture = String::read_from(reader)?;
         let unknown = reader.read_int()?;
-        let loot_mode = array::try_from_fn(|_| reader.read_byte())?;
+        let loot_mode_len = reader.current_block_end().saturating_sub(reader.get_pos()) as usize;
+        let mut loot_mode = Vec::with_capacity(loot_mode_len);
+        for _ in 0..loot_mode_len {
+            loot_mode.push(reader.read_byte()?);
+        }
 
         reader.end_block()?;
 
