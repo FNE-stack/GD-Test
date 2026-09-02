@@ -30,9 +30,11 @@ jobs:
           # rust-toolchain.toml pins e.g. "nightly-2025-06-01-x86_64-pc-windows-gnu"
           # (the GNU host, needed only for the local dlltool workaround) —
           # CI wants the same nightly DATE but the MSVC host instead, since
-          # link.exe is already on this runner.
+          # link.exe is already on this runner. Match only the YYYY-MM-DD
+          # date itself (anchored, non-greedy) so we don't accidentally
+          # swallow the trailing "-" before "x86_64...".
           channel=$(grep -oP 'channel = "\K[^"]+' rust-toolchain.toml)
-          date=$(echo "$channel" | grep -oP 'nightly-\K[0-9-]+' || true)
+          date=$(echo "$channel" | grep -oP 'nightly-\K[0-9]{4}-[0-9]{2}-[0-9]{2}' || true)
           if [ -z "$date" ]; then
             echo "toolchain=nightly" >> "$GITHUB_OUTPUT"
           else
