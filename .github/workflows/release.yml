@@ -1,0 +1,75 @@
+name: Build Windows release
+
+# Builds a single-file gd-gear-compare.exe on every push to main, and
+# publishes it (bundled with the data/ folder it needs alongside it) as a
+# GitHub Release so it can be downloaded and double-clicked with nothing
+# else installed. GitHub's windows-latest runner ships with the MSVC
+# linker preinstalled, so — unlike the local dev setup, which had to switch
+# to the GNU toolchain to avoid installing Visual Studio — CI can just use
+# the default MSVC target directly. Nightly Rust is still required
+# (vendor_save_parser/src/lib.rs uses the nightly-only array_try_from_fn).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned nightly toolchain
+        id: toolchain
+        shell: bash
+        run: |
+          # rust-toolchain.toml pins e.g. "nightly-2025-06-01-x86_64-pc-windows-gnu"
+          # (the GNU host, needed only for the local dlltool workaround) —
+          # CI wants the same nightly DATE but the MSVC host instead, since
+          # link.exe is already on this runner.
+          channel=$(grep -oP 'channel = "\K[^"]+' rust-toolchain.toml)
+          date=$(echo "$channel" | grep -oP 'nightly-\K[0-9-]+' || true)
+          if [ -z "$date" ]; then
+            echo "toolchain=nightly" >> "$GITHUB_OUTPUT"
+          else
+            echo "toolchain=nightly-$date-x86_64-pc-windows-msvc" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Rust (${{ steps.toolchain.outputs.toolchain }})
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.toolchain }}
+
+      - name: Build release binary
+        run: cargo build --release --target x86_64-pc-windows-msvc
+        env:
+          RUSTFLAGS: ""
+
+      - name: Assemble release folder
+        shell: pwsh
+        run: |
+          $out = "dist/GD-Gear-Compare"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item "target/x86_64-pc-windows-msvc/release/gd-gear-compare.exe" "$out/gd-gear-compare.exe"
+          Copy-Item -Recurse "data" "$out/data"
+          New-Item -ItemType Directory -Force -Path "$out/profiles" | Out-Null
+          Copy-Item "README.md" "$out/README.md"
+          Compress-Archive -Path "$out/*" -DestinationPath "dist/GD-Gear-Compare-windows.zip" -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GD-Gear-Compare-windows
+          path: dist/GD-Gear-Compare-windows.zip
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          files: dist/GD-Gear-Compare-windows.zip
+          make_latest: true
