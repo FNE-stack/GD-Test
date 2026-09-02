@@ -536,6 +536,25 @@ document.getElementById("character-select").addEventListener("change", async (e)
   await loadProfile();
 });
 
+// ---------- Auto-shutdown ----------
+// This server backs one local browser tab, not a long-running service —
+// left running after the tab closes, it just sits there until someone
+// remembers to kill it in Task Manager (and holds the port in the
+// meantime, so a freshly-launched build silently fails to start). Two
+// mechanisms, matching the two ways "the page is gone" actually happens:
+// - pagehide fires reliably when the tab is closed/navigated away, so
+//   sendBeacon here (fire-and-forget, survives the page tearing down,
+//   unlike a plain fetch) shuts the server down near-instantly.
+// - The heartbeat is a fallback for anything that skips pagehide (a
+//   browser crash, the browser process being force-killed) — see
+//   HEARTBEAT_TIMEOUT in server.rs for why its timeout is generous.
+window.addEventListener("pagehide", () => {
+  navigator.sendBeacon("/api/shutdown");
+});
+setInterval(() => {
+  fetch("/api/heartbeat", { method: "POST" }).catch(() => {});
+}, 5000);
+
 // ---------- init ----------
 renderWeights();
 loadTaxonomy().catch((err) => console.error("priority taxonomy load failed", err));

@@ -7,7 +7,11 @@ not just a generic grade.
 
 Ships as a single `.exe`. Double-click it, it opens the compare UI in your
 browser at `http://127.0.0.1:8934`. Nothing to install on the machine you
-actually play on.
+actually play on. Closing that browser tab shuts the server down on its
+own (near-instantly on a normal close; within about a minute either way,
+e.g. if the browser itself crashes) — no need to remember to end the
+process by hand, and no stale instance left behind blocking a later
+launch from using the same port.
 
 ## What it does
 
