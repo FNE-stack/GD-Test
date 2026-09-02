@@ -38,7 +38,16 @@ impl Readable for CharacterFile {
         ensure_eq(reader.read_int()?, 0x58434447, "start bytes 0")?;
         ensure_eq(reader.read_int()?, 2, "start bytes 1")?;
         let hdr = Header::read_from(reader)?;
-        ensure_eq(reader.read_byte()?, 3, "start bytes 2")?;
+        // This byte was originally asserted to always be 3, but real saves
+        // have been observed with 7 (e.g. after later expansion/DLC content
+        // has been played) — it's an expansion/mode flags byte, not a fixed
+        // format marker, so the value was never actually meaningful to
+        // parsing here. read_byte() always consumes exactly one byte and
+        // advances the decryption key state the same way regardless of its
+        // value, so accepting any byte here can't desync the rest of the
+        // read — it just stops rejecting saves the original vendored parser
+        // hadn't been tested against.
+        reader.read_byte()?;
         ensure_eq(reader.next_int()?, 0, "start bytes 3")?;
         ensure_eq(reader.read_int()?, 8, "version")?;
         let id = UID::read_from(reader)?;
