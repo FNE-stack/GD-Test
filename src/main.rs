@@ -29,6 +29,7 @@ mod stats;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Instant;
 
 const PORT: u16 = 8934;
 
@@ -71,6 +72,10 @@ fn main() {
         save_dir: Mutex::new(save_dir),
         profiles_dir,
         settings_path,
+        // Seeded to "now" rather than something already-stale, so the
+        // auto-shutdown watchdog (server.rs) can't fire before the browser
+        // even finishes opening and sending its first heartbeat.
+        last_heartbeat: Mutex::new(Instant::now()),
     };
 
     let url = format!("http://127.0.0.1:{PORT}");

@@ -11,7 +11,19 @@ use crate::stats::{prio_score, resist_impact, PrioWeights};
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 use tiny_http::{Header, Method, Response, Server};
+
+/// How stale the last heartbeat can get before the watchdog thread kills
+/// the process. Generous on purpose: the normal "tab actually closed" case
+/// is handled near-instantly by the /api/shutdown beacon below, so this
+/// timeout only matters as a fallback (browser crash, force-kill, or any
+/// other way the beacon gets skipped) — long enough that a background tab
+/// throttled by the browser's timer coalescing never trips a false
+/// shutdown while the user still has the page open.
+const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(60);
+const WATCHDOG_INTERVAL: Duration = Duration::from_secs(5);
 
 const INDEX_HTML: &str = include_str!("../ui/index.html");
 const APP_JS: &str = include_str!("../ui/app.js");
@@ -28,12 +40,31 @@ pub struct AppState {
     pub save_dir: Mutex<Option<PathBuf>>,
     pub profiles_dir: PathBuf,
     pub settings_path: PathBuf,
+    /// Updated on every /api/heartbeat ping from the page (app.js pings
+    /// every 5s while open). Read by the watchdog thread spawned in `run`
+    /// to auto-exit if the page has gone away without sending an explicit
+    /// /api/shutdown beacon.
+    pub last_heartbeat: Mutex<Instant>,
 }
 
 pub fn run(state: AppState, port: u16) {
     let server = Server::http(("127.0.0.1", port)).expect("failed to bind local server");
     let state = Arc::new(state);
     println!("GD Gear Compare running at http://127.0.0.1:{port}");
+
+    {
+        let watchdog_state = Arc::clone(&state);
+        thread::spawn(move || loop {
+            thread::sleep(WATCHDOG_INTERVAL);
+            let elapsed = watchdog_state.last_heartbeat.lock().unwrap().elapsed();
+            if elapsed > HEARTBEAT_TIMEOUT {
+                // No console to print to (windows_subsystem = "windows"),
+                // and nothing to clean up — the OS reclaims the bound port
+                // on process exit, which is the whole point.
+                std::process::exit(0);
+            }
+        });
+    }
 
     for mut request in server.incoming_requests() {
         let method = request.method().clone();
@@ -58,6 +89,17 @@ fn handle(
         (Method::Get, "/") => html_response(INDEX_HTML),
         (Method::Get, "/app.js") => js_response(APP_JS),
         (Method::Get, "/style.css") => css_response(STYLE_CSS),
+
+        (Method::Post, "/api/heartbeat") => {
+            *state.last_heartbeat.lock().unwrap() = Instant::now();
+            json_response(200, &json!({ "ok": true }))
+        }
+        // navigator.sendBeacon posts here on pagehide (app.js) — exiting
+        // immediately rather than waiting out the watchdog's timeout is the
+        // whole point of having this as a separate fast path.
+        (Method::Post, "/api/shutdown") => {
+            std::process::exit(0);
+        }
 
         (Method::Get, "/api/characters") => api_list_characters(state),
         (Method::Get, "/api/settings") => api_get_settings(state),
