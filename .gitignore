@@ -1,3 +1,5 @@
 /target
 profiles/*.json
 settings.json
+# debug_parse --features trace-blocks output, when redirected to a file
+trace*.log

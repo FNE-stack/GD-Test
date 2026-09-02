@@ -17,6 +17,10 @@ where
         Self: Sized,
     {
         let len = reader.read_int()?;
+        #[cfg(feature = "trace-blocks")]
+        if len > 1000 {
+            eprintln!("[trace] SUSPICIOUS Vec<T> len={len} at pos={}", reader.get_pos());
+        }
         let mut res = Vec::new();
         for _i in 0..len {
             res.push(T::read_from(reader)?);
@@ -43,6 +47,10 @@ impl Readable for String {
         Self: Sized,
     {
         let len = reader.read_int()?;
+        #[cfg(feature = "trace-blocks")]
+        if len > 1000 {
+            eprintln!("[trace] SUSPICIOUS String len={len} at pos={}", reader.get_pos());
+        }
         let mut res: Vec<u8> = Vec::new();
         for _i in 0..len {
             res.push(reader.read_byte()?);

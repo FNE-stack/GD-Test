@@ -19,35 +19,35 @@ pub struct CharacterSkills {
 
 impl Readable for CharacterSkills {
     fn read_from(reader: &mut dyn Parser) -> Result<Self> {
-        // Not start_block_with_versions: cross-checked against gd-edit
-        // (https://github.com/Odie/gd-edit), whose equivalent block gates
-        // its one extra trailing field on "version >= 6", not "version ==
-        // 6" — so a version past 6 still has this field, but the old
-        // exact-list check here ([5, 6]) rejected it outright before ever
-        // getting to read it.
         reader.start_block(8)?;
         let version = reader.read_int()?;
 
-        let skills = Vec::read_from(reader)?;
-        let masteries_allowed = reader.read_int()?;
-        let skill_reclamation_points_used = reader.read_int()?;
-        let devotion_reclamation_points_used = reader.read_int()?;
-        let item_skills = Vec::read_from(reader)?;
-        let unknown = if version >= 6 {
-            Some(reader.read_int()?)
-        } else {
-            None
-        };
+        // This app (only inv.equipment) never reads skill data, and the
+        // per-skill layout has grown a field this parser doesn't yet know
+        // the size or position of (found empirically: a real save's first
+        // Skill entry decodes name/level/enabled/devotion/experience/
+        // active/unknown1/unknown2 correctly, then its autocast-skill
+        // string reads as garbage — something new was inserted before it
+        // that isn't documented in gd-edit's model either). Forward-only
+        // reader means we can't safely "try and roll back" a wrong guess
+        // here the way we can for a single trailing field (CharacterInfo's
+        // loot_mode, StashTab's trailing bytes) — so rather than risk
+        // misreading every skill/item-skill in the list, skip straight to
+        // this block's declared end and leave the collections empty.
+        let remaining = reader.current_block_end().saturating_sub(reader.get_pos()) as usize;
+        for _ in 0..remaining {
+            reader.read_byte()?;
+        }
 
         reader.end_block()?;
 
         Ok(CharacterSkills {
-            skills,
-            item_skills,
-            masteries_allowed,
-            skill_reclamation_points_used,
-            devotion_reclamation_points_used,
-            unknown,
+            skills: Vec::new(),
+            item_skills: Vec::new(),
+            masteries_allowed: 0,
+            skill_reclamation_points_used: 0,
+            devotion_reclamation_points_used: 0,
+            unknown: if version >= 6 { Some(0) } else { None },
         })
     }
 }
