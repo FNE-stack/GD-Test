@@ -47,8 +47,15 @@ jobs:
           toolchain: ${{ steps.toolchain.outputs.toolchain }}
 
       - name: Build release binary
+        # rust-toolchain.toml pins the GNU-host nightly (needed for the
+        # local dev workaround), which conflicts with --target msvc once a
+        # toolchain name embeds its own target triple — rustup refuses to
+        # cross those. Override the pin for this one command via
+        # RUSTUP_TOOLCHAIN so CI uses the MSVC nightly just installed above
+        # without needing to change what local dev builds against.
         run: cargo build --release --target x86_64-pc-windows-msvc
         env:
+          RUSTUP_TOOLCHAIN: ${{ steps.toolchain.outputs.toolchain }}
           RUSTFLAGS: ""
 
       - name: Assemble release folder
