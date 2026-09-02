@@ -20,6 +20,7 @@
 #![windows_subsystem = "windows"]
 
 mod catalog;
+mod import;
 mod resolve;
 mod save_parser;
 mod server;

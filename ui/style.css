@@ -107,6 +107,28 @@ main {
   font-size: 0.85rem;
 }
 
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.import-row button {
+  margin-top: 0;
+}
+
+.status-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.status-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .tab-bar {
   display: flex;
   flex-wrap: wrap;
