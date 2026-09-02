@@ -14,6 +14,10 @@ pub trait Parser {
 
     fn get_pos(&self) -> u64;
     fn inc_pos(&mut self, v: u64);
+    /// How many blocks are currently open — used only to annotate
+    /// parse-error messages with nesting context (see `end_block`), not for
+    /// any parsing logic itself.
+    fn block_depth(&self) -> usize;
 
     fn read_key(&mut self) -> Result<()> {
         let (k, _) = read_exact!(self.get_source(), self, u32);
@@ -66,6 +70,8 @@ pub trait Parser {
     fn start_block(&mut self, t: u32) -> Result<()> {
         let mut b = Block::new();
         ensure_eq(self.read_block_start(&mut b)?, t, "block start")?;
+        b.tag = t;
+        b.depth = self.block_depth();
 
         self.push_block(b);
         Ok(())
@@ -78,6 +84,8 @@ pub trait Parser {
             "block start with version",
         )?;
         ensure_eq(self.read_int()?, v, "version")?;
+        b.tag = t;
+        b.depth = self.block_depth();
         self.push_block(b);
         Ok(())
     }
@@ -89,12 +97,23 @@ pub trait Parser {
             "block start with version",
         )?;
         let version = ensure_contains(self.read_int()?, v, "version")?;
+        b.tag = t;
+        b.depth = self.block_depth();
         self.push_block(b);
         Ok(version)
     }
     fn end_block(&mut self) -> Result<()> {
         let b = self.pop_block()?;
-        ensure_eq(self.get_pos(), b.end, "block end position")?;
+        // block tag/depth identify *which* nested structure failed to close
+        // at the right position — the model/*.rs file whose
+        // start_block*(tag, ...) call matches `tag` is the one to look at.
+        // Depth is how many blocks were still open above it (0 = top-level
+        // CharacterInfo/Inventory/etc, higher = nested inside one of those).
+        ensure_eq(
+            self.get_pos(),
+            b.end,
+            &format!("block end position (tag={}, depth={})", b.tag, b.depth),
+        )?;
         ensure_eq(self.next_int()?, 0, "block end")?;
         Ok(())
     }
@@ -103,10 +122,17 @@ pub trait Parser {
 pub struct Block {
     pub len: u32,
     pub end: u64,
+    pub tag: u32,
+    pub depth: usize,
 }
 
 impl Block {
     pub fn new() -> Block {
-        Block { len: 0, end: 0 }
+        Block {
+            len: 0,
+            end: 0,
+            tag: 0,
+            depth: 0,
+        }
     }
 }
