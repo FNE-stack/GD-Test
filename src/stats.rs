@@ -43,12 +43,20 @@ pub const DEFAULT_RESIST_CAP: f64 = 80.0;
 /// Attribute keys observed across grim_gleaner's whole catalog (equipment,
 /// affixes, relics, augments, components — verified by scanning all five
 /// files) that represent a single core magnitude rather than a qualifier.
-/// "value"/"percent"/"flat" all mean "the number", just from different
-/// source DBR fields, so they collapse onto the bare property_id. Every
-/// other numeric key (chance_percent, reduction_flat, skill_level, duration_*,
-/// component, ...) is kept but suffixed onto the property_id so it isn't
-/// silently dropped or wrongly merged into an unrelated number.
-const PRIMARY_MAGNITUDE_KEYS: &[&str] = &["value", "percent", "flat"];
+/// "value"/"percent"/"flat"/"damage_percent" all mean "the number" for their
+/// property (just from different source DBR fields), so they collapse onto
+/// the bare property_id — this matters a lot for "damage_percent": it's the
+/// sole attribute on ~13k properties in equipment.json alone (every
+/// "X_damage_percent" stat, e.g. fire_damage_percent, aether_damage_percent),
+/// so missing it here previously meant those extremely common offense stats
+/// were silently stored as "fire_damage_percent:damage_percent" instead of
+/// the bare "fire_damage_percent" the priority taxonomy weights — they never
+/// matched a user's set priority, so items with big elemental % rolls scored
+/// as if they had nothing. Every other numeric key (chance_percent,
+/// reduction_flat, skill_level, duration_*, component, ...) is kept but
+/// suffixed onto the property_id so it isn't silently dropped or wrongly
+/// merged into an unrelated number.
+const PRIMARY_MAGNITUDE_KEYS: &[&str] = &["value", "percent", "flat", "damage_percent"];
 
 /// Flat map of stat_key -> summed numeric value for one item, where
 /// stat_key is usually the bare property_id (for the primary magnitude)
@@ -161,13 +169,29 @@ pub fn letter_grade(score: f64, max_possible: f64) -> &'static str {
     }
 }
 
-/// The theoretical max score if an item had every weighted stat at a
-/// reasonably strong roll (~30, tuned against typical GD affix magnitudes).
+/// Max realistic stats a single item can carry that are all relevant to the
+/// build: a base item + prefix + suffix can each contribute a couple of
+/// stat lines, but real drops rarely hit more than ~4-5 *weighted*
+/// priorities at once even with a big priority list — most of an item's
+/// affix budget goes to stats you didn't weight. Grading against "if it
+/// had literally every weighted stat" (the previous approach) made every
+/// real item look weak once more than a few stats were prioritized.
+const REALISTIC_HITS_PER_ITEM: usize = 5;
+
+/// The theoretical max score for a strong, realistic item: it hits the
+/// `REALISTIC_HITS_PER_ITEM` highest-weighted priorities, each at a solid
+/// roll (~30, tuned against typical GD affix magnitudes).
 pub fn max_possible_score(weights: &PrioWeights) -> f64 {
-    weights
+    let mut star_weights: Vec<f64> = weights
         .values()
         .filter(|&&w| w > 0)
-        .map(|&w| (w as f64) * 10.0 + 3.0)
+        .map(|&w| w as f64)
+        .collect();
+    star_weights.sort_by(|a, b| b.partial_cmp(a).unwrap());
+    star_weights
+        .into_iter()
+        .take(REALISTIC_HITS_PER_ITEM)
+        .map(|w| w * 10.0 + 3.0)
         .sum()
 }
 
