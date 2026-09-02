@@ -117,6 +117,10 @@ fn handle(
             let name = &path["/api/equipped/".len()..];
             api_equipped(state, name)
         }
+        (Method::Get, path) if path.starts_with("/api/new-items/") => {
+            let name = &path["/api/new-items/".len()..];
+            api_new_items(state, name)
+        }
         (Method::Post, "/api/resolve-item") => api_resolve_item(state, body),
         (Method::Post, "/api/compare") => api_compare(state, body),
         // Must come before the generic POST /api/profile/{name} arm below,
@@ -212,6 +216,69 @@ fn api_equipped(state: &Arc<AppState>, character: &str) -> Response<std::io::Cur
         }
         Err(e) => json_response(500, &json!({ "error": e })),
     }
+}
+
+/// "Check for new items": diffs the character's current stash/backpack
+/// contents against a persisted snapshot of what was there last time this
+/// endpoint was hit, resolves whatever's new against the catalog, and
+/// updates the snapshot to the current contents. Doesn't see anything
+/// Grim Dawn hasn't actually written to player.gdc yet (autosave, leaving
+/// an area, opening the menu, etc — this app doesn't control when that
+/// happens), so it's "what's new since I last checked", not instant.
+fn api_new_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+    let guard = state.save_dir.lock().unwrap();
+    let Some(dir) = guard.as_ref() else {
+        return json_response(400, &json!({ "error": "no save directory configured" }));
+    };
+    let current = match save_parser::read_inventory_items(dir, character) {
+        Ok(items) => items,
+        Err(e) => return json_response(500, &json!({ "error": e })),
+    };
+    drop(guard);
+
+    let snapshot_path = state
+        .profiles_dir
+        .join(format!("{character}.known-items.json"));
+    let known: std::collections::HashSet<String> = std::fs::read_to_string(&snapshot_path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Vec<String>>(&text).ok())
+        .map(|keys| keys.into_iter().collect())
+        .unwrap_or_default();
+    let is_first_check = !snapshot_path.exists();
+
+    let mut new_items = Vec::new();
+    let mut current_keys = Vec::with_capacity(current.len());
+    for raw in current {
+        let key = raw.identity_key();
+        if !known.contains(&key) {
+            let resolved = resolve_item(&state.catalog, &raw.as_equipped());
+            new_items.push(json!({
+                "base_name": raw.base_name,
+                "prefix_name": raw.prefix_name,
+                "suffix_name": raw.suffix_name,
+                "display_name": resolved.display_name,
+                "stats": resolved.stats,
+                "unresolved": resolved.unresolved,
+            }));
+        }
+        current_keys.push(key);
+    }
+
+    if let Err(e) = std::fs::create_dir_all(&state.profiles_dir) {
+        return json_response(500, &json!({ "error": e.to_string() }));
+    }
+    let snapshot_json = match serde_json::to_vec(&current_keys) {
+        Ok(bytes) => bytes,
+        Err(e) => return json_response(500, &json!({ "error": e.to_string() })),
+    };
+    if let Err(e) = std::fs::write(&snapshot_path, snapshot_json) {
+        return json_response(500, &json!({ "error": e.to_string() }));
+    }
+
+    json_response(
+        200,
+        &json!({ "is_first_check": is_first_check, "new_items": new_items }),
+    )
 }
 
 /// Resolves a single item by its base/prefix/suffix DBR paths (used for
