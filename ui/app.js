@@ -15,48 +15,35 @@ const RESISTANCE_STATS = [
   "bleeding_resistance",
 ];
 
-// Grouped so "+ Add stat" is a pick-list, not a free-typed property_id —
-// property_id names come straight from the vendored grim_gleaner catalog.
-const STAT_CATALOG = {
-  "Survivability": [
-    "total_health", "armor", "armor_percent", "defensive_ability",
-    "physique", "flat_health_regen", "percent_health_regen",
-    "flat_life_leech_percent",
-  ],
-  "Offense — General": [
-    "offensive_ability", "offensive_ability_percent", "attack_speed",
-    "casting_speed", "critical_damage", "damage_conversion",
-  ],
-  "Offense — Physical / Pierce": [
-    "flat_physical_damage", "physical_damage_percent",
-    "flat_pierce_damage", "pierce_damage_percent",
-  ],
-  "Offense — Elemental": [
-    "flat_fire_damage", "fire_damage_percent",
-    "flat_cold_damage", "cold_damage_percent",
-    "flat_lightning_damage", "lightning_damage_percent",
-    "flat_elemental_damage", "elemental_damage_percent",
-    "flat_electrocute_damage", "electrocute_damage_percent",
-    "flat_frostburn_damage", "frostburn_damage_percent",
-    "flat_burn_damage", "burn_damage_percent",
-  ],
-  "Offense — Other Damage Types": [
-    "flat_acid_damage", "acid_damage_percent",
-    "flat_aether_damage", "aether_damage_percent",
-    "flat_chaos_damage", "chaos_damage_percent",
-    "flat_vitality_damage", "vitality_damage_percent",
-    "flat_vitality_decay_damage", "flat_poison_damage",
-    "flat_bleeding_damage", "bleeding_damage_percent",
-    "flat_internal_trauma_damage", "internal_trauma_damage_percent",
-  ],
-  "Resistances (max cap)": [
-    "maximum_fire_resistance", "maximum_cold_resistance",
-    "maximum_lightning_resistance", "maximum_aether_resistance",
-    "maximum_chaos_resistance", "maximum_vitality_resistance",
-    "maximum_poison_acid_resistance", "maximum_pierce_resistance",
-    "maximum_bleeding_resistance", "maximum_all_resistance",
-  ],
-};
+// The full stat picker is NOT hand-curated here — it's fetched from
+// /api/stats-catalog, which reflects every property_id actually present in
+// the vendored grim_gleaner catalog (computed server-side in catalog.rs).
+// A hardcoded list here previously went stale/wrong; this can't drift since
+// it's the same data the resolver itself uses.
+let STAT_CATALOG_FLAT = []; // filled by loadStatCatalog()
+
+function groupStat(id) {
+  if (id.startsWith("maximum_") && id.includes("resistance")) return "Resistance Caps";
+  if (id.endsWith("_resistance")) return "Resistances";
+  if (id.startsWith("pet_")) return "Pet";
+  if (id.includes("damage") || id.includes("retaliation")) return "Offense — Damage";
+  if (
+    ["offensive_ability", "offensive_ability_percent", "attack_speed", "casting_speed",
+     "critical_damage", "cooldown_reduction"].includes(id)
+  ) return "Offense — General";
+  if (
+    ["health", "health_percent", "health_regeneration", "health_regeneration_percent",
+     "armor", "armor_percent", "armor_absorption_percent", "defensive_ability",
+     "defensive_ability_percent", "physique", "physique_percent", "dodge_chance",
+     "reflected_damage_reduction"].includes(id)
+  ) return "Survivability";
+  return "Other";
+}
+
+async function loadStatCatalog() {
+  const data = await api("/api/stats-catalog");
+  STAT_CATALOG_FLAT = data.stats || [];
+}
 
 let state = {
   character: null,
@@ -208,12 +195,45 @@ document.getElementById("add-stat-btn").addEventListener("click", () => {
 
 function openStatPicker() {
   const modal = document.getElementById("stat-picker-modal");
+  document.getElementById("stat-picker-search").value = "";
+  renderStatPickerList("");
+  modal.hidden = false;
+  document.getElementById("stat-picker-search").focus();
+}
+
+function renderStatPickerList(filterText) {
   const body = document.getElementById("stat-picker-body");
   body.innerHTML = "";
-  for (const [group, stats] of Object.entries(STAT_CATALOG)) {
+
+  const filter = filterText.trim().toLowerCase();
+  const groups = {};
+  for (const stat of STAT_CATALOG_FLAT) {
+    if (RESISTANCE_STATS.includes(stat)) continue; // already always shown above, pinned
+    if (filter && !prettyStat(stat).toLowerCase().includes(filter) && !stat.includes(filter)) {
+      continue;
+    }
+    const group = groupStat(stat);
+    (groups[group] ||= []).push(stat);
+  }
+
+  const groupOrder = [
+    "Survivability", "Offense — General", "Offense — Damage",
+    "Resistance Caps", "Resistances", "Pet", "Other",
+  ];
+  const orderedGroups = groupOrder.filter((g) => groups[g]);
+  for (const g of Object.keys(groups)) {
+    if (!orderedGroups.includes(g)) orderedGroups.push(g);
+  }
+
+  if (orderedGroups.length === 0) {
+    body.appendChild(el("p", { class: "hint", text: "No stats match your search." }));
+    return;
+  }
+
+  for (const group of orderedGroups) {
     body.appendChild(el("h4", { text: group }));
     const grid = el("div", { class: "stat-picker-grid" });
-    for (const stat of stats) {
+    for (const stat of groups[group]) {
       const already = stat in state.weights;
       const btn = el("button", {
         type: "button",
@@ -224,14 +244,17 @@ function openStatPicker() {
         if (!(stat in state.weights)) state.weights[stat] = 2;
         renderWeights();
         saveProfile();
-        modal.hidden = true;
+        document.getElementById("stat-picker-modal").hidden = true;
       });
       grid.appendChild(btn);
     }
     body.appendChild(grid);
   }
-  modal.hidden = false;
 }
+
+document.getElementById("stat-picker-search").addEventListener("input", (e) => {
+  renderStatPickerList(e.target.value);
+});
 
 document.getElementById("stat-picker-close").addEventListener("click", () => {
   document.getElementById("stat-picker-modal").hidden = true;
@@ -409,6 +432,7 @@ document.getElementById("character-select").addEventListener("change", async (e)
 
 // ---------- init ----------
 renderWeights();
+loadStatCatalog().catch((err) => console.error("stat catalog load failed", err));
 loadCharacters().catch((err) => {
   console.error(err);
   document.getElementById("save-dir-warning").hidden = false;

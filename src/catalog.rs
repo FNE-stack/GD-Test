@@ -3,7 +3,7 @@
 //! save-file item's DBR record paths into human-readable stats.
 
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// A single resolved stat line, e.g. "Fire Damage" +18%.
 /// Not yet consumed by the current UI (stats.rs works off flat HashMaps for
@@ -65,6 +65,48 @@ impl Catalog {
             .or_else(|| self.relics_by_path.get(record_path))
             .or_else(|| self.augments_by_path.get(record_path))
             .or_else(|| self.components_by_path.get(record_path))
+    }
+
+    /// Every distinct property_id that actually appears anywhere in the
+    /// loaded catalog (equipment, affixes, relics, augments, components) —
+    /// computed straight from the same indexed data used for item
+    /// resolution, so the UI's stat picker can never drift out of sync with
+    /// what the game data actually contains. Excludes a small set of
+    /// non-numeric/structural ids (granted skills, mastery/skill bonuses)
+    /// that aren't meaningful as a star-weighted priority.
+    pub fn all_property_ids(&self) -> Vec<String> {
+        const EXCLUDED: &[&str] = &[
+            "granted_item_skill",
+            "mastery_bonus",
+            "skill_bonus",
+            "retaliation_effect_choice",
+            "unresolved_composite",
+        ];
+        let mut ids = HashSet::new();
+        for map in [
+            &self.equipment_by_path,
+            &self.affixes_by_path,
+            &self.relics_by_path,
+            &self.augments_by_path,
+            &self.components_by_path,
+        ] {
+            for resolved in map.values() {
+                let Some(properties) = resolved.get("properties").and_then(|v| v.as_array())
+                else {
+                    continue;
+                };
+                for prop in properties {
+                    if let Some(id) = prop.get("property_id").and_then(|v| v.as_str()) {
+                        if !EXCLUDED.contains(&id) {
+                            ids.insert(id.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        let mut ids: Vec<String> = ids.into_iter().collect();
+        ids.sort();
+        ids
     }
 }
 

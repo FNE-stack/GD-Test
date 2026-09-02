@@ -298,6 +298,10 @@ th { color: var(--text-dim); font-weight: 700; font-size: 0.8rem; text-transform
   z-index: 10;
 }
 
+.modal-backdrop[hidden] {
+  display: none;
+}
+
 .modal-card {
   background: #fff;
   border-radius: 10px;

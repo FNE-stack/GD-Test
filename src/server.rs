@@ -51,6 +51,9 @@ fn handle(
         (Method::Get, "/style.css") => css_response(STYLE_CSS),
 
         (Method::Get, "/api/characters") => api_list_characters(state),
+        (Method::Get, "/api/stats-catalog") => {
+            json_response(200, &json!({ "stats": state.catalog.all_property_ids() }))
+        }
         (Method::Get, path) if path.starts_with("/api/equipped/") => {
             let name = &path["/api/equipped/".len()..];
             api_equipped(state, name)
