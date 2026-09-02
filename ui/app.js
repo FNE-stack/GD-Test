@@ -70,9 +70,7 @@ async function loadCharacters() {
   const data = await api("/api/characters");
   const select = document.getElementById("character-select");
   select.innerHTML = "";
-  if (!data.save_dir_found) {
-    document.getElementById("save-dir-warning").hidden = false;
-  }
+  document.getElementById("save-dir-warning").hidden = data.save_dir_found;
   if (data.characters.length === 0) {
     select.appendChild(el("option", { text: "(none found)" }));
     return;
@@ -84,6 +82,57 @@ async function loadCharacters() {
   await loadEquipped();
   await loadProfile();
 }
+
+// ---------- Settings (save folder override) ----------
+
+function toggleSettingsPanel(show) {
+  document.getElementById("settings-panel").hidden = !show;
+}
+
+document.getElementById("settings-btn").addEventListener("click", async () => {
+  const panel = document.getElementById("settings-panel");
+  const opening = panel.hidden;
+  toggleSettingsPanel(opening);
+  if (opening) {
+    try {
+      const data = await api("/api/settings");
+      document.getElementById("save-dir-input").value = data.save_dir || "";
+    } catch {
+      // ignore — leave the field as-is
+    }
+  }
+});
+
+document.getElementById("open-settings-btn").addEventListener("click", () => {
+  toggleSettingsPanel(true);
+  document.getElementById("save-dir-input").focus();
+});
+
+document.getElementById("save-dir-apply-btn").addEventListener("click", async () => {
+  const status = document.getElementById("save-dir-status");
+  const path = document.getElementById("save-dir-input").value.trim();
+  if (!path) {
+    status.textContent = "Enter a folder path first.";
+    return;
+  }
+  status.textContent = "Checking…";
+  try {
+    const res = await fetch("/api/settings/save-dir", {
+      method: "POST",
+      body: JSON.stringify({ path }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      status.textContent = "❌ " + (data.error || "Could not use that folder.");
+      return;
+    }
+    status.textContent = "✓ Save folder set. Reloading characters…";
+    document.getElementById("save-dir-warning").hidden = true;
+    await loadCharacters();
+  } catch (err) {
+    status.textContent = "❌ " + err.message;
+  }
+});
 
 async function loadEquipped() {
   if (!state.character) return;

@@ -44,12 +44,38 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 1;
 }
 
 .warning {
   color: var(--danger);
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent-strong);
+  text-decoration: underline;
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-panel {
+  max-width: 980px;
+  margin: 1rem auto 0;
+}
+
+.settings-panel code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.85em;
 }
 
 main {

@@ -5,10 +5,11 @@
 use crate::catalog::Catalog;
 use crate::resolve::{resolve_item, sum_all};
 use crate::save_parser;
+use crate::settings::{self, Settings};
 use crate::stats::{prio_score, resist_impact, PrioWeights};
 use serde_json::json;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tiny_http::{Header, Method, Response, Server};
 
 const INDEX_HTML: &str = include_str!("../ui/index.html");
@@ -21,8 +22,11 @@ const PRIORITY_TAXONOMY: &str = include_str!("../data/priority_taxonomy.json");
 
 pub struct AppState {
     pub catalog: Catalog,
-    pub save_dir: Option<PathBuf>,
+    /// Mutex, not a plain Option, because the save folder can be changed at
+    /// runtime from the Settings panel without restarting the app.
+    pub save_dir: Mutex<Option<PathBuf>>,
     pub profiles_dir: PathBuf,
+    pub settings_path: PathBuf,
 }
 
 pub fn run(state: AppState, port: u16) {
@@ -55,6 +59,8 @@ fn handle(
         (Method::Get, "/style.css") => css_response(STYLE_CSS),
 
         (Method::Get, "/api/characters") => api_list_characters(state),
+        (Method::Get, "/api/settings") => api_get_settings(state),
+        (Method::Post, "/api/settings/save-dir") => api_set_save_dir(state, body),
         (Method::Get, "/api/stats-catalog") => {
             json_response(200, &json!({ "stats": state.catalog.all_property_ids() }))
         }
@@ -84,7 +90,8 @@ fn handle(
 }
 
 fn api_list_characters(state: &Arc<AppState>) -> Response<std::io::Cursor<Vec<u8>>> {
-    let Some(dir) = &state.save_dir else {
+    let guard = state.save_dir.lock().unwrap();
+    let Some(dir) = guard.as_ref() else {
         return json_response(
             200,
             &json!({ "characters": [], "save_dir_found": false }),
@@ -93,14 +100,53 @@ fn api_list_characters(state: &Arc<AppState>) -> Response<std::io::Cursor<Vec<u8
     match save_parser::list_characters(dir) {
         Ok(names) => json_response(
             200,
-            &json!({ "characters": names, "save_dir_found": true }),
+            &json!({ "characters": names, "save_dir_found": true, "save_dir": dir.display().to_string() }),
         ),
         Err(e) => json_response(500, &json!({ "error": e.to_string() })),
     }
 }
 
+fn api_get_settings(state: &Arc<AppState>) -> Response<std::io::Cursor<Vec<u8>>> {
+    let guard = state.save_dir.lock().unwrap();
+    json_response(
+        200,
+        &json!({ "save_dir": guard.as_ref().map(|p| p.display().to_string()) }),
+    )
+}
+
+/// Body: { "path": "C:\\...\\save\\main" } — validates the folder actually
+/// looks like a Grim Dawn save dir before accepting it, persists the choice
+/// to settings.json, and updates the live server state immediately (no
+/// restart needed).
+fn api_set_save_dir(state: &Arc<AppState>, body: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+    #[derive(serde::Deserialize)]
+    struct Req {
+        path: String,
+    }
+    let req: Result<Req, _> = serde_json::from_str(body);
+    let req = match req {
+        Ok(r) => r,
+        Err(e) => return json_response(400, &json!({ "error": e.to_string() })),
+    };
+    let path = PathBuf::from(req.path.trim());
+
+    if let Err(msg) = settings::validate_save_dir(&path) {
+        return json_response(400, &json!({ "error": msg }));
+    }
+
+    let mut current_settings = Settings::load(&state.settings_path);
+    current_settings.save_dir_override = Some(path.clone());
+    if let Err(e) = current_settings.save(&state.settings_path) {
+        return json_response(500, &json!({ "error": format!("could not save settings: {e}") }));
+    }
+
+    *state.save_dir.lock().unwrap() = Some(path.clone());
+    json_response(200, &json!({ "ok": true, "save_dir": path.display().to_string() }))
+}
+
 fn api_equipped(state: &Arc<AppState>, character: &str) -> Response<std::io::Cursor<Vec<u8>>> {
-    let Some(dir) = &state.save_dir else {
+    let guard = state.save_dir.lock().unwrap();
+    let Some(dir) = guard.as_ref() else {
         return json_response(400, &json!({ "error": "no save directory configured" }));
     };
     match save_parser::read_equipped_items(dir, character) {

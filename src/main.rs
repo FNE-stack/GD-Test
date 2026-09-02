@@ -15,15 +15,18 @@ mod catalog;
 mod resolve;
 mod save_parser;
 mod server;
+mod settings;
 mod stats;
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 const PORT: u16 = 8934;
 
 fn main() {
     let catalog_dir = exe_relative_dir("data/catalog");
     let profiles_dir = exe_relative_dir("profiles");
+    let settings_path = exe_relative_dir("settings.json");
 
     let catalog = match catalog::Catalog::load(&catalog_dir) {
         Ok(c) => c,
@@ -38,20 +41,28 @@ fn main() {
         }
     };
 
-    let save_dir = save_parser::default_save_dir();
+    let settings = settings::Settings::load(&settings_path);
+    let save_dir = settings
+        .save_dir_override
+        .clone()
+        .or_else(save_parser::default_save_dir);
     match &save_dir {
+        Some(dir) if settings.save_dir_override.is_some() => {
+            println!("Using configured Grim Dawn save folder: {}", dir.display())
+        }
         Some(dir) => println!("Found Grim Dawn save folder: {}", dir.display()),
         None => println!(
             "Could not auto-detect your Grim Dawn save folder \
              (expected under Documents\\My Games\\Grim Dawn\\save\\main). \
-             You can still use manual item comparison in the UI."
+             Set one in the app's Settings, or use manual item comparison."
         ),
     }
 
     let state = server::AppState {
         catalog,
-        save_dir,
+        save_dir: Mutex::new(save_dir),
         profiles_dir,
+        settings_path,
     };
 
     let url = format!("http://127.0.0.1:{PORT}");

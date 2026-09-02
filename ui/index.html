@@ -13,10 +13,26 @@
       <label for="character-select">Character</label>
       <select id="character-select"></select>
       <span id="save-dir-warning" class="warning" hidden>
-        Save folder not found — you can still enter items manually below.
+        Save folder not found —
+        <button id="open-settings-btn" type="button" class="link-btn">set it in Settings</button>
+        or enter items manually below.
       </span>
     </div>
+    <button id="settings-btn" type="button">⚙ Settings</button>
   </header>
+
+  <div id="settings-panel" class="panel settings-panel" hidden>
+    <h2>Settings</h2>
+    <label for="save-dir-input">Grim Dawn save folder</label>
+    <p class="hint">
+      The folder containing your character subfolders (each named like "_YourCharacterName"),
+      normally <code>Documents\My Games\Grim Dawn\save\main</code>. Set this if your Documents
+      folder is redirected (OneDrive, another drive) or the save wasn't auto-detected.
+    </p>
+    <input id="save-dir-input" type="text" placeholder="C:\Users\you\Documents\My Games\Grim Dawn\save\main" />
+    <button id="save-dir-apply-btn" type="button" class="primary">Set save folder</button>
+    <p id="save-dir-status" class="hint"></p>
+  </div>
 
   <main>
     <section id="weights-panel" class="panel">

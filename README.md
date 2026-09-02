@@ -26,6 +26,13 @@ actually play on.
   4 stars, and the verdict downweights a swap that drops an uncapped
   resistance even if the raw damage score looks better) — capping resist is
   close to a hard requirement in Grim Dawn before raw damage matters much.
+- Priority categories/labels are ported directly from grim_gleaner's own
+  stat registry (`data/priority_taxonomy.json`), so the tabs match
+  grim_gleaner 1:1 rather than an ad-hoc grouping.
+- Auto-detects your save folder at the default location; if it's not found
+  (redirected Documents, save on another drive, etc), set it manually in
+  **⚙ Settings** — validated and persisted to `settings.json`, no restart
+  needed.
 
 ## Not built yet
 
