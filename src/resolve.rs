@@ -23,7 +23,17 @@ pub struct ResolvedItem {
 
 pub fn resolve_item(catalog: &Catalog, raw: &RawEquippedItem) -> ResolvedItem {
     let mut stats = HashMap::new();
-    let mut display_name = String::new();
+    // Grim Dawn's magic-item naming is "<Prefix> <Base> <Suffix>" (a
+    // suffix's own display_name already includes its "of " — e.g. "of
+    // Mending" — a prefix's doesn't — e.g. "Unyielding"), so these are
+    // tracked separately and joined afterward rather than only ever using
+    // the base item's own name. Previously this used the base name alone
+    // even when a prefix/suffix was present and its stats were already
+    // being merged in — "Unyielding Imperial Necklace of Mending" showed
+    // as just "Imperial Necklace".
+    let mut base_display_name = String::new();
+    let mut prefix_display_name = String::new();
+    let mut suffix_display_name = String::new();
     let mut unresolved = false;
 
     let parts: [&str; 6] = [
@@ -41,23 +51,36 @@ pub fn resolve_item(catalog: &Catalog, raw: &RawEquippedItem) -> ResolvedItem {
         }
         match catalog.resolve_path(path) {
             Some(resolved) => {
-                if i == 0 {
-                    display_name = resolved
-                        .get("display_name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(path)
-                        .to_string();
+                let name = resolved
+                    .get("display_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(path);
+                match i {
+                    0 => base_display_name = name.to_string(),
+                    1 => prefix_display_name = name.to_string(),
+                    2 => suffix_display_name = name.to_string(),
+                    _ => {}
                 }
                 merge_stats(&mut stats, &extract_stats(resolved));
             }
             None => {
                 if i == 0 {
                     unresolved = true;
-                    display_name = path.to_string();
+                    base_display_name = path.to_string();
                 }
             }
         }
     }
+
+    let display_name = [
+        prefix_display_name.as_str(),
+        base_display_name.as_str(),
+        suffix_display_name.as_str(),
+    ]
+    .into_iter()
+    .filter(|part| !part.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ");
 
     ResolvedItem {
         slot_index: raw.slot_index,
@@ -123,15 +146,26 @@ mod tests {
             }]
         });
         let affixes = serde_json::json!({
-            "affixes": [{
-                "display_name": "of Embers",
-                "tiers": [{
-                    "record_path": "records/affixes/of_embers.dbr",
-                    "properties": [
-                        { "property_id": "fire_damage_percent", "attributes": { "damage_percent": "15.000000" } }
-                    ]
-                }]
-            }]
+            "affixes": [
+                {
+                    "display_name": "Fiery",
+                    "tiers": [{
+                        "record_path": "records/affixes/fiery.dbr",
+                        "properties": [
+                            { "property_id": "fire_damage_percent", "attributes": { "damage_percent": "15.000000" } }
+                        ]
+                    }]
+                },
+                {
+                    "display_name": "of the Bear",
+                    "tiers": [{
+                        "record_path": "records/affixes/of_the_bear.dbr",
+                        "properties": [
+                            { "property_id": "physique", "attributes": { "value": "10.000000" } }
+                        ]
+                    }]
+                }
+            ]
         });
         let relics = serde_json::json!({
             "items": [{
@@ -185,16 +219,28 @@ mod tests {
         let catalog = build_test_catalog();
         let raw = raw_item(
             "records/items/test_ring.dbr",
-            "records/affixes/of_embers.dbr",
+            "records/affixes/fiery.dbr",
             "records/relics/test_relic.dbr",
         );
         let resolved = resolve_item(&catalog, &raw);
 
         assert!(!resolved.unresolved);
-        assert_eq!(resolved.display_name, "Test Ring");
+        // "<Prefix> <Base>" — see resolve_item's own comment on why the
+        // display name isn't just the base item's name alone.
+        assert_eq!(resolved.display_name, "Fiery Test Ring");
         assert_eq!(resolved.stats.get("fire_resistance"), Some(&20.0));
         assert_eq!(resolved.stats.get("fire_damage_percent"), Some(&15.0));
         assert_eq!(resolved.stats.get("offensive_ability"), Some(&50.0));
+    }
+
+    #[test]
+    fn display_name_combines_prefix_base_and_suffix() {
+        let catalog = build_test_catalog();
+        let mut raw = raw_item("records/items/test_ring.dbr", "records/affixes/fiery.dbr", "");
+        raw.suffix_name = "records/affixes/of_the_bear.dbr".to_string();
+        let resolved = resolve_item(&catalog, &raw);
+
+        assert_eq!(resolved.display_name, "Fiery Test Ring of the Bear");
     }
 
     #[test]
