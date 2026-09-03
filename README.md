@@ -35,8 +35,12 @@ launch from using the same port.
   grim_gleaner 1:1 rather than an ad-hoc grouping.
 - Auto-detects your save folder at the default location; if it's not found
   (redirected Documents, save on another drive, etc), set it manually in
-  **⚙ Settings** — validated and persisted to `settings.json`, no restart
-  needed.
+  **⚙ Settings** — validated and persisted to `%APPDATA%\GD Gear
+  Compare\settings.json`, no restart needed. That's a stable, per-user
+  location independent of which folder any given release's `.exe` happens
+  to be unzipped into, so this (and your saved priority profiles, and the
+  "check for new items" baseline) survive updating to a newer build —
+  no re-entering it every version.
 - **Import a grim_gleaner profile.** Click "Import grim_gleaner profile…"
   above the priority tabs and pick a profile JSON exported from
   grim_gleaner's own UI — its `weights` map ports over directly (same
@@ -96,9 +100,11 @@ Then:
 ```
 cargo build --release
 ```
-The binary lands in `target/release/gd-gear-compare.exe`. Copy `data/` and
-an empty `profiles/` folder next to it before running (or run it once from
-the repo root — it looks for both relative to the exe's own location).
+The binary lands in `target/release/gd-gear-compare.exe`. Copy `data/`
+next to it before running (or run it once from the repo root — it looks
+for that one relative to the exe's own location). Settings and profiles
+live under `%APPDATA%\GD Gear Compare` instead, not next to the exe — see
+"What it does" above.
 
 ## Using it
 
@@ -107,7 +113,7 @@ the repo root — it looks for both relative to the exe's own location).
    `Documents\My Games\Grim Dawn\save\main`). If it's not found, you can
    still compare items manually.
 3. Set your stat priorities (★0–4) for this character — saved automatically
-   per character under `profiles/`.
+   per character under `%APPDATA%\GD Gear Compare\profiles`.
 4. Pick a gear slot to compare against, enter the candidate item's base
    name/prefix/suffix (as DBR record paths, e.g.
    `records/items/gearhead/d004_head.dbr`), and hit Compare.

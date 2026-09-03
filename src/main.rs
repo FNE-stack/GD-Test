@@ -35,8 +35,17 @@ const PORT: u16 = 8934;
 
 fn main() {
     let catalog_dir = exe_relative_dir("data/catalog");
-    let profiles_dir = exe_relative_dir("profiles");
-    let settings_path = exe_relative_dir("settings.json");
+    // Settings and profiles live in the OS's per-user app-data folder, not
+    // next to the exe — every new release is a fresh folder (a new
+    // version's zip, a re-download, a build-N directory during
+    // development...), so exe-relative storage meant the save-folder
+    // setting, priority profiles, and "check for new items" baseline all
+    // silently reset on every single update. %APPDATA% survives all of
+    // that. Falls back to exe-relative only if %APPDATA% genuinely isn't
+    // set (unusual, but shouldn't be fatal).
+    let app_data_dir = app_data_dir().unwrap_or_else(|| exe_relative_dir("."));
+    let profiles_dir = app_data_dir.join("profiles");
+    let settings_path = app_data_dir.join("settings.json");
 
     let catalog = match catalog::Catalog::load(&catalog_dir) {
         Ok(c) => c,
@@ -90,6 +99,18 @@ fn exe_relative_dir(rel: &str) -> PathBuf {
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| PathBuf::from("."))
         .join(rel)
+}
+
+/// `%APPDATA%\GD Gear Compare` — the one location that's the same
+/// regardless of which folder a given release's exe happens to be
+/// unzipped into, so settings/profiles survive updates. Creates the
+/// folder on first use; returns None only if %APPDATA% itself isn't set
+/// (very unusual) or genuinely can't be created, in which case the
+/// caller falls back to exe-relative storage.
+fn app_data_dir() -> Option<PathBuf> {
+    let dir = PathBuf::from(std::env::var_os("APPDATA")?).join("GD Gear Compare");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir)
 }
 
 fn open_browser(url: &str) -> std::io::Result<()> {
