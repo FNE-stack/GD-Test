@@ -65,7 +65,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item "target/x86_64-pc-windows-msvc/release/gd-gear-compare.exe" "$out/gd-gear-compare.exe"
           Copy-Item -Recurse "data" "$out/data"
-          New-Item -ItemType Directory -Force -Path "$out/profiles" | Out-Null
+          # Not profiles/ — settings and profiles live under %APPDATA%,
+          # not next to the exe, precisely so they survive updating to a
+          # newer build's zip/folder. See main.rs's app_data_dir.
           Copy-Item "README.md" "$out/README.md"
           Compress-Archive -Path "$out/*" -DestinationPath "dist/GD-Gear-Compare-windows.zip" -Force
 

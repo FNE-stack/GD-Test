@@ -1,7 +1,10 @@
-//! Small persisted app config (settings.json next to the exe) — currently
-//! just an optional override for the Grim Dawn save folder, for players
-//! whose save isn't in the default Documents\My Games\Grim Dawn\save\main
-//! location (custom Documents redirect, save on another drive, etc).
+//! Small persisted app config (settings.json under %APPDATA%\GD Gear
+//! Compare — see main.rs's app_data_dir, chosen so it survives updates
+//! regardless of which folder a given release happens to be unzipped
+//! into) — currently just an optional override for the Grim Dawn save
+//! folder, for players whose save isn't in the default
+//! Documents\My Games\Grim Dawn\save\main location (custom Documents
+//! redirect, save on another drive, etc).
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -24,6 +27,11 @@ impl Settings {
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         let text = serde_json::to_string_pretty(self)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        // app_data_dir() already creates its folder, but don't assume that
+        // stays true of every path this is ever called with.
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         std::fs::write(path, text)
     }
 }
