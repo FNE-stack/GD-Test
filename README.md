@@ -17,7 +17,22 @@ launch from using the same port.
 
 - Reads your character's currently-equipped gear straight from your Grim
   Dawn save file (`player.gdc`), so comparisons use your real current
-  resistances/stats as the baseline — not guesswork.
+  resistances/stats as the baseline — not guesswork. Since Grim Dawn only
+  writes that file on specific triggers (autosave, leaving an area,
+  opening the menu, quitting — never instantly on pickup/move/sell), the
+  header always shows **"Save data as of ..."** with exactly when that
+  file was last written, so a stale read (an item you moved that still
+  shows up, gear you don't have anymore) is obvious rather than confusing.
+- Item names include their full prefix/suffix ("Unyielding Imperial
+  Necklace of Mending", not just "Imperial Necklace") and, when the
+  catalog has one, the item's level ("(ilvl 65)") — Grim Dawn reuses one
+  name across an item's power tiers (the community's "Empowered" drops
+  are the same name, a much higher item level), so this is the one way to
+  tell which tier you're actually looking at.
+- Granted/bonus skills resolve to their real names — "Blitz (+2)" instead
+  of an internal `skill_bonus:skill_level` key — and a skill an item
+  merely *grants* (a proc, not a rank bonus) is labeled "(granted skill)"
+  so it's not confused with the two behaving the same way.
 - Lets you set adjustable, per-character stat priorities (0–4 stars each),
   same idea as [grim_gleaner](https://github.com/kultcher/grim_gleaner)'s
   weighting system.

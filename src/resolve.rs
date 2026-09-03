@@ -35,6 +35,14 @@ pub fn resolve_item(catalog: &Catalog, raw: &RawEquippedItem) -> ResolvedItem {
     let mut prefix_display_name = String::new();
     let mut suffix_display_name = String::new();
     let mut unresolved = false;
+    // Grim Dawn reuses one name across an item's level-scaling tiers (e.g.
+    // "Eyes of Flame" at item level 25 vs. the much stronger item level 65
+    // superboss drop players call the "Empowered" version — the game's own
+    // data has no separate name for that, so neither did this app). The
+    // stats were already correct per the exact record_path equipped, but
+    // there was no way to tell which tier you were looking at from the
+    // name alone.
+    let mut item_level: Option<i64> = None;
 
     let parts: [&str; 6] = [
         &raw.base_name,
@@ -56,7 +64,10 @@ pub fn resolve_item(catalog: &Catalog, raw: &RawEquippedItem) -> ResolvedItem {
                     .and_then(|v| v.as_str())
                     .unwrap_or(path);
                 match i {
-                    0 => base_display_name = name.to_string(),
+                    0 => {
+                        base_display_name = name.to_string();
+                        item_level = resolved.get("item_level").and_then(|v| v.as_i64());
+                    }
                     1 => prefix_display_name = name.to_string(),
                     2 => suffix_display_name = name.to_string(),
                     _ => {}
@@ -72,7 +83,7 @@ pub fn resolve_item(catalog: &Catalog, raw: &RawEquippedItem) -> ResolvedItem {
         }
     }
 
-    let display_name = [
+    let mut display_name = [
         prefix_display_name.as_str(),
         base_display_name.as_str(),
         suffix_display_name.as_str(),
@@ -81,6 +92,9 @@ pub fn resolve_item(catalog: &Catalog, raw: &RawEquippedItem) -> ResolvedItem {
     .filter(|part| !part.is_empty())
     .collect::<Vec<_>>()
     .join(" ");
+    if let Some(lvl) = item_level.filter(|lvl| *lvl > 0) {
+        display_name = format!("{display_name} (ilvl {lvl})");
+    }
 
     ResolvedItem {
         slot_index: raw.slot_index,
@@ -135,15 +149,27 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
 
         let equipment = serde_json::json!({
-            "items": [{
-                "display_name": "Test Ring",
-                "variants": [{
-                    "record_path": "records/items/test_ring.dbr",
-                    "properties": [
-                        { "property_id": "fire_resistance", "attributes": { "percent": "20.000000" } }
-                    ]
-                }]
-            }]
+            "items": [
+                {
+                    "display_name": "Test Ring",
+                    "variants": [{
+                        "record_path": "records/items/test_ring.dbr",
+                        "properties": [
+                            { "property_id": "fire_resistance", "attributes": { "percent": "20.000000" } }
+                        ]
+                    }]
+                },
+                {
+                    "display_name": "Test Unique Head",
+                    "variants": [{
+                        "record_path": "records/items/test_unique_head.dbr",
+                        "item_level": 65,
+                        "properties": [
+                            { "property_id": "fire_damage_percent", "attributes": { "damage_percent": "44.000000" } }
+                        ]
+                    }]
+                }
+            ]
         });
         let affixes = serde_json::json!({
             "affixes": [
@@ -231,6 +257,24 @@ mod tests {
         assert_eq!(resolved.stats.get("fire_resistance"), Some(&20.0));
         assert_eq!(resolved.stats.get("fire_damage_percent"), Some(&15.0));
         assert_eq!(resolved.stats.get("offensive_ability"), Some(&50.0));
+    }
+
+    #[test]
+    fn item_level_is_appended_when_the_catalog_has_one() {
+        let catalog = build_test_catalog();
+        let raw = raw_item("records/items/test_unique_head.dbr", "", "");
+        let resolved = resolve_item(&catalog, &raw);
+
+        assert_eq!(resolved.display_name, "Test Unique Head (ilvl 65)");
+    }
+
+    #[test]
+    fn item_level_is_omitted_when_the_catalog_has_none() {
+        let catalog = build_test_catalog();
+        let raw = raw_item("records/items/test_ring.dbr", "", "");
+        let resolved = resolve_item(&catalog, &raw);
+
+        assert_eq!(resolved.display_name, "Test Ring");
     }
 
     #[test]

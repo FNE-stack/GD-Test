@@ -205,6 +205,7 @@ fn api_equipped(state: &Arc<AppState>, character: &str) -> Response<std::io::Cur
     let Some(dir) = guard.as_ref() else {
         return json_response(400, &json!({ "error": "no save directory configured" }));
     };
+    let save_file_mtime = save_parser::save_file_mtime(dir, character);
     match save_parser::read_equipped_items(dir, character) {
         Ok(raw_items) => {
             let resolved: Vec<_> = raw_items
@@ -212,7 +213,10 @@ fn api_equipped(state: &Arc<AppState>, character: &str) -> Response<std::io::Cur
                 .map(|r| resolve_item(&state.catalog, r))
                 .collect();
             let totals = sum_all(&resolved);
-            json_response(200, &json!({ "items": resolved, "totals": totals }))
+            json_response(
+                200,
+                &json!({ "items": resolved, "totals": totals, "save_file_mtime": save_file_mtime }),
+            )
         }
         Err(e) => json_response(500, &json!({ "error": e })),
     }
@@ -236,6 +240,7 @@ fn api_bag_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cu
     let Some(dir) = guard.as_ref() else {
         return json_response(400, &json!({ "error": "no save directory configured" }));
     };
+    let save_file_mtime = save_parser::save_file_mtime(dir, character);
     let current: Vec<_> = match save_parser::read_inventory_items(dir, character) {
         Ok(items) => items,
         Err(e) => return json_response(500, &json!({ "error": e })),
@@ -298,7 +303,10 @@ fn api_bag_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cu
         return json_response(500, &json!({ "error": e.to_string() }));
     }
 
-    json_response(200, &json!({ "items": items }))
+    json_response(
+        200,
+        &json!({ "items": items, "save_file_mtime": save_file_mtime }),
+    )
 }
 
 /// Resolves a single item by its base/prefix/suffix DBR paths (used for

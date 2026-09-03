@@ -7,6 +7,7 @@ use save_parser::util::map_to_json;
 use serde_json::Value;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 /// One equipped item as read straight from the save file: base item + any
 /// prefix/suffix/component/augment/relic DBR paths. Each is either a real
@@ -120,6 +121,21 @@ pub fn list_characters(save_dir: &Path) -> std::io::Result<Vec<String>> {
     }
     names.sort();
     Ok(names)
+}
+
+/// Unix timestamp (seconds) of `player.gdc`'s last write — i.e. the last
+/// time Grim Dawn actually saved, not "now". Grim Dawn only writes on
+/// specific triggers (autosave, leaving an area, opening the menu, quitting
+/// — not the instant an item is picked up or moved), so everything this
+/// app reads can be meaningfully stale; exposing this lets the UI show
+/// that plainly instead of implying the numbers are live.
+pub fn save_file_mtime(save_dir: &Path, character_name: &str) -> Option<u64> {
+    let player_path = save_dir.join(character_name).join("player.gdc");
+    let modified = std::fs::metadata(&player_path).ok()?.modified().ok()?;
+    modified
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_secs())
 }
 
 /// Parses `<save_dir>/<character_name>/player.gdc` and returns the 12
