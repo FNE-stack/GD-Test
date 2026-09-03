@@ -7,7 +7,7 @@ use crate::import::import_grim_gleaner_profile;
 use crate::resolve::{resolve_item, sum_all};
 use crate::save_parser;
 use crate::settings::{self, Settings};
-use crate::stats::{prio_score, resist_impact, PrioWeights};
+use crate::stats::{prio_score, resist_impact, weapon_damage_index, PrioWeights};
 use serde_json::json;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -354,12 +354,21 @@ fn api_compare(_state: &Arc<AppState>, body: &str) -> Response<std::io::Cursor<V
 
     let resists = resist_impact(&req.baseline_totals, &req.item_a_stats, &req.item_b_stats);
 
+    // Always computed (cheap, and harmless for non-weapon slots — it's just
+    // 0 when an item has no flat damage stats). The UI decides whether to
+    // let it drive the verdict, since it's the one place that already
+    // knows which slot is selected (save_parser::WEAPON_SLOT_START).
+    let damage_index_a = weapon_damage_index(&req.item_a_stats);
+    let damage_index_b = weapon_damage_index(&req.item_b_stats);
+
     json_response(
         200,
         &json!({
             "item_a": { "score": score_a, "grade": grade_a },
             "item_b": { "score": score_b, "grade": grade_b },
             "resist_impact": resists,
+            "damage_index_a": damage_index_a,
+            "damage_index_b": damage_index_b,
         }),
     )
 }

@@ -45,6 +45,20 @@ launch from using the same port.
   health, everything, not just the score and the resistance table) side by
   side with the exact change, so you're not left guessing what a single
   grade number is actually made of.
+- **Weapon slots (Main Hand/Off-Hand) are judged on damage output, full
+  stop** — not the star-weighted score every other slot uses. That score
+  only ever checked whether a starred stat was present at all, so a weapon
+  with a much smaller flat-damage roll but a few more separately-starred
+  bonus lines (a skill rank here, some spirit there) could out-"score" one
+  with several times the actual DPS the game itself reports. Compare now
+  computes an **Est. damage output** index from each weapon's own flat +
+  percent damage stats and uses *that* to decide the verdict outright;
+  resistance loss only breaks the tie when the two candidates' damage
+  output is within 8% of each other. This is a best-effort approximation —
+  it doesn't know the weapon's exact attacks/second, your other gear,
+  OA/DA convergence, crit, or proc chance (none of that is in the vendored
+  catalog), so it's directional, not the exact number the in-game tooltip
+  shows — cross-check that tooltip when a weapon call is close.
 - Resistances are always treated as top priority by default (default to
   4 stars, and the verdict downweights a swap that drops an uncapped
   resistance even if the raw damage score looks better) — capping resist is

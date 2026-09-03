@@ -228,6 +228,81 @@ pub fn max_possible_score(weights: &PrioWeights) -> f64 {
         .sum()
 }
 
+/// GD's direct-hit damage types, as `(type, elemental_boosted)` — the
+/// second field says whether `elemental_damage_percent` also inflates this
+/// type's flat damage, on top of its own matching `{type}_damage_percent`.
+/// `elemental` itself is NOT elemental-boosted here: its own percent stat
+/// *is* `elemental_damage_percent`, so adding the same bonus twice would
+/// double-count it.
+const DIRECT_DAMAGE_TYPES: &[(&str, bool)] = &[
+    ("physical", false),
+    ("pierce", false),
+    ("fire", true),
+    ("cold", true),
+    ("lightning", true),
+    ("acid", false),
+    ("poison", false),
+    ("vitality", false),
+    ("aether", false),
+    ("chaos", false),
+    ("elemental", false),
+];
+
+/// GD's damage-over-time types. burn/frostburn/electrocute are the fire/
+/// cold/lightning DoTs respectively, so `elemental_damage_percent` boosts
+/// them too, same as their direct-hit counterparts.
+const DOT_DAMAGE_TYPES: &[(&str, bool)] = &[
+    ("burn", true),
+    ("frostburn", true),
+    ("electrocute", true),
+    ("bleeding", false),
+    ("vitality_decay", false),
+    ("internal_trauma", false),
+];
+
+/// Best-effort weapon damage-output index: sums this item's own flat
+/// direct-hit and damage-over-time stats, each inflated by its own
+/// matching `%` bonus (plus `elemental_damage_percent` for the elemental
+/// types and `total_damage_percent` globally), then scaled once by the
+/// item's own `%` attack speed.
+///
+/// This is deliberately NOT the exact number the game's own tooltip shows
+/// ("170-188 Fire Damage ... 5418 DPS if equipped") — that also factors in
+/// the rest of your gear, skills, OA/DA convergence, crit, procs, and the
+/// weapon's actual base attacks/second, none of which this app has outside
+/// the item itself (grim_gleaner's catalog only carries the item's own
+/// bonus rolls, never a weapon type's intrinsic attack rate). What this
+/// gets right is ranking two candidates for the SAME weapon slot against
+/// each other on damage output — which is what actually decides a weapon
+/// upgrade — instead of `prio_score`'s star-weighted relevance model
+/// silently treating "has this stat at all" the same as "has 3x more of
+/// it": that's exactly how a ~65 flat-elemental weapon with a handful of
+/// small starred bonuses (skill ranks, spirit, offensive ability) used to
+/// outscore a ~180 flat-fire weapon with several times the game's own
+/// computed DPS, because the magnitude bonus was capped at 5 points
+/// regardless of the roll's actual size.
+pub fn weapon_damage_index(stats: &HashMap<String, f64>) -> f64 {
+    let get = |k: &str| *stats.get(k).unwrap_or(&0.0);
+    let total_pct = get("total_damage_percent");
+    let elemental_pct = get("elemental_damage_percent");
+
+    let mut total = 0.0;
+    for &(ty, elemental_boosted) in DIRECT_DAMAGE_TYPES.iter().chain(DOT_DAMAGE_TYPES.iter()) {
+        let flat = get(&format!("flat_{ty}_damage"));
+        if flat == 0.0 {
+            continue;
+        }
+        let mut pct = get(&format!("{ty}_damage_percent"));
+        if elemental_boosted {
+            pct += elemental_pct;
+        }
+        total += flat * (1.0 + (pct + total_pct) / 100.0);
+    }
+
+    let attack_speed_pct = get("attack_speed");
+    total * (1.0 + attack_speed_pct / 100.0)
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct ResistImpact {
     pub stat: String,
@@ -511,6 +586,108 @@ mod tests {
     #[test]
     fn max_possible_score_is_zero_for_empty_weights() {
         assert_eq!(max_possible_score(&PrioWeights::new()), 0.0);
+    }
+
+    // ---------- weapon_damage_index ----------
+
+    #[test]
+    fn weapon_damage_index_is_zero_with_no_damage_stats() {
+        let stats = map(&[("offensive_ability", 86.0), ("spirit", 30.0)]);
+        assert_eq!(weapon_damage_index(&stats), 0.0);
+    }
+
+    #[test]
+    fn weapon_damage_index_applies_own_percent_and_total_damage_percent() {
+        // 100 flat physical, +50% physical, +10% total -> 100 * 1.6 = 160
+        let stats = map(&[
+            ("flat_physical_damage", 100.0),
+            ("physical_damage_percent", 50.0),
+            ("total_damage_percent", 10.0),
+        ]);
+        assert!((weapon_damage_index(&stats) - 160.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn weapon_damage_index_elemental_percent_boosts_fire_but_not_physical() {
+        let stats = map(&[
+            ("flat_fire_damage", 100.0),
+            ("flat_physical_damage", 100.0),
+            ("elemental_damage_percent", 50.0),
+        ]);
+        // fire: 100 * 1.5 = 150 (boosted); physical: 100 * 1.0 = 100 (not boosted)
+        assert!((weapon_damage_index(&stats) - 250.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn weapon_damage_index_does_not_double_count_elemental_on_flat_elemental_damage() {
+        // flat_elemental_damage's own matching percent IS elemental_damage_percent
+        // - it must only apply once, not once as "its own" and again as "the
+        // elemental boost".
+        let stats = map(&[
+            ("flat_elemental_damage", 100.0),
+            ("elemental_damage_percent", 50.0),
+        ]);
+        assert!((weapon_damage_index(&stats) - 150.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn weapon_damage_index_elemental_percent_also_boosts_matching_dots() {
+        // burn is fire's DoT - elemental_damage_percent boosts it alongside
+        // its own burn_damage_percent; bleeding (a physical DoT) is untouched.
+        let stats = map(&[
+            ("flat_burn_damage", 20.0),
+            ("burn_damage_percent", 20.0),
+            ("flat_bleeding_damage", 20.0),
+            ("elemental_damage_percent", 30.0),
+        ]);
+        // burn: 20 * (1 + (20+30)/100) = 20 * 1.5 = 30; bleeding: 20 * 1.0 = 20
+        assert!((weapon_damage_index(&stats) - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn weapon_damage_index_scales_by_the_items_own_attack_speed_percent() {
+        let stats = map(&[("flat_physical_damage", 100.0), ("attack_speed", 25.0)]);
+        assert!((weapon_damage_index(&stats) - 125.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn weapon_damage_index_favors_a_much_bigger_flat_roll_over_more_starred_bonus_lines() {
+        // Real catalog stats (extract_stats output) for two epic two-handed
+        // ranged weapons from the same slot - this is the exact bug report:
+        // the old prio_score model had the small-flat-damage item (several
+        // separately-starred bonus lines: spirit, offensive ability, two
+        // skill ranks) outscoring the much-bigger-flat-damage item, despite
+        // the latter having several times the game's own computed DPS.
+        //
+        // "Will of Fate" (ilvl 65): 61-68 fire/cold/lightning + 26 flat
+        // elemental, all boosted by a single 95% elemental_damage_percent
+        // roll, +8% attack speed.
+        let will_of_fate = map(&[
+            ("flat_fire_damage", 64.5),
+            ("flat_cold_damage", 64.5),
+            ("flat_lightning_damage", 64.5),
+            ("flat_elemental_damage", 26.0),
+            ("elemental_damage_percent", 95.0),
+            ("attack_speed", 8.0),
+            ("offensive_ability", 86.0),
+            ("spirit", 30.0),
+        ]);
+        // "Flame Keeper's Repeater" (ilvl 70): 170-188 fire + 26 flat burn,
+        // both boosted by their own ~122% rolls, +30% attack speed.
+        let flame_keepers_repeater = map(&[
+            ("flat_fire_damage", 179.0),
+            ("fire_damage_percent", 122.0),
+            ("flat_burn_damage", 26.0),
+            ("burn_damage_percent", 122.0),
+            ("attack_speed", 30.0),
+        ]);
+
+        let idx_a = weapon_damage_index(&will_of_fate);
+        let idx_b = weapon_damage_index(&flame_keepers_repeater);
+
+        assert!((idx_a - 462.27).abs() < 0.1, "will of fate index was {idx_a}");
+        assert!((idx_b - 591.63).abs() < 0.1, "repeater index was {idx_b}");
+        assert!(idx_b > idx_a, "the much bigger flat-damage weapon must score higher");
     }
 
     // ---------- resist_impact (item comparison) ----------

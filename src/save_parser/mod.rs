@@ -9,6 +9,12 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+/// The 12 fixed body slots (Head..Relic) come first; the active weapon set
+/// is appended starting here (12 = Main Hand, 13 = Off-Hand). Matches
+/// app.js's SLOT_LABELS array index-for-index and server.rs's weapon-only
+/// damage-index handling — keep all three in sync if this ever changes.
+pub const WEAPON_SLOT_START: usize = 12;
+
 /// One equipped item as read straight from the save file: base item + any
 /// prefix/suffix/component/augment/relic DBR paths. Each is either a real
 /// record_path string or empty if that slot on the item is unused.
@@ -196,9 +202,6 @@ pub fn read_equipped_items(
         "/inv/weapon2"
     };
     if let Some(weapons) = parsed.pointer(active_weapon_set).and_then(|v| v.as_array()) {
-        // WEAPON_SLOT_START matches app.js's SLOT_LABELS (12 = Main Hand,
-        // 13 = Off-Hand) — keep the two in sync if this ever changes.
-        const WEAPON_SLOT_START: usize = 12;
         for (i, slot) in weapons.iter().enumerate() {
             let Some(item) = slot.get("item").filter(|v| !v.is_null()) else {
                 continue;

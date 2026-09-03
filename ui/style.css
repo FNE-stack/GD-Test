@@ -411,6 +411,7 @@ button.primary:hover { background: var(--accent-strong); border-color: var(--acc
 
 .verdict h3 { margin: 0 0 0.4rem; color: var(--text); }
 .verdict p { margin: 0; color: var(--text-dim); }
+.verdict p + p { margin-top: 0.5rem; }
 
 table {
   width: 100%;
