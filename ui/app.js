@@ -418,17 +418,21 @@ document.getElementById("import-gg-file").addEventListener("change", async (e) =
   }
 });
 
-// ---------- Items in your bags ----------
-// Lists every equippable item currently in the character's stash/backpack
-// — not just recently-picked-up ones, so anything you've been carrying
-// around is just as pickable as today's loot. Items new since the last
-// time this ran (tracked server-side per character) are flagged and
-// sorted to the top so a fresh haul is still easy to spot; everything
-// else is still right there below it, not hidden. Not instant — it only
-// sees what Grim Dawn has actually written to the save file (autosave,
-// leaving an area, opening the menu, etc), not the moment an item is
-// picked up. Clicking a result fills in the manual fields below and
-// resolves it as the candidate, same as typing the paths in by hand.
+// ---------- Items in your bags & stash ----------
+// Lists every equippable item currently in the character's personal
+// inventory bags *and* personal stash tabs (not the shared/transfer
+// stash) — not just recently-picked-up ones, so anything you're carrying
+// or have set aside in a stash tab is just as pickable as today's loot.
+// Drop candidates you want to evaluate later into any bag slot or any
+// stash tab — they'll show up here regardless of which one. Items new
+// since the last time this ran (tracked server-side per character, by
+// item identity — not by which bag/tab it's in, so moving one around
+// doesn't re-flag it) are flagged and sorted to the top; everything else
+// is still right there below, not hidden. Not instant — it only sees what
+// Grim Dawn has actually written to the save file (autosave, leaving an
+// area, opening the menu, etc), not the moment an item is picked up or
+// moved. Clicking a result fills in the manual fields below and resolves
+// it as the candidate, same as typing the paths in by hand.
 
 document.getElementById("browse-bag-items-btn").addEventListener("click", async () => {
   const status = document.getElementById("bag-items-status");
@@ -439,7 +443,7 @@ document.getElementById("browse-bag-items-btn").addEventListener("click", async 
     return;
   }
   status.className = "hint";
-  status.textContent = "Reading your bags…";
+  status.textContent = "Reading your bags & stash…";
   list.hidden = true;
   list.innerHTML = "";
   try {
@@ -447,7 +451,7 @@ document.getElementById("browse-bag-items-btn").addEventListener("click", async 
     showSaveFreshness(data.save_file_mtime);
     if (!data.items || data.items.length === 0) {
       status.className = "hint";
-      status.textContent = "Nothing equippable found in your bags.";
+      status.textContent = "Nothing equippable found in your bags or stash.";
       return;
     }
     const newCount = data.items.filter((item) => item.is_new).length;
@@ -458,7 +462,10 @@ document.getElementById("browse-bag-items-btn").addEventListener("click", async 
       " — click one to compare it:";
     list.hidden = false;
     for (const item of data.items) {
-      const label = el("span", { text: item.display_name || item.base_name });
+      const nameText = item.source
+        ? `${item.display_name || item.base_name} — ${item.source}`
+        : item.display_name || item.base_name;
+      const label = el("span", { text: nameText });
       const rowChildren = [label];
       if (item.is_new) {
         rowChildren.push(el("span", { class: "new-badge", text: "NEW" }));

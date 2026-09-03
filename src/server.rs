@@ -222,40 +222,46 @@ fn api_equipped(state: &Arc<AppState>, character: &str) -> Response<std::io::Cur
     }
 }
 
-/// "Check for new items": diffs the character's current stash/backpack
-/// contents against a persisted snapshot of what was there last time this
-/// endpoint was hit, resolves whatever's new against the catalog, and
-/// updates the snapshot to the current contents. Doesn't see anything
-/// Grim Dawn hasn't actually written to player.gdc yet (autosave, leaving
-/// an area, opening the menu, etc — this app doesn't control when that
-/// happens), so "new" here means "since I last checked", not instant.
+/// "Items in your bags & stash": lists every equippable item currently in
+/// the character's personal inventory bags *and* personal stash tabs (not
+/// the shared/transfer stash — a separate .gst file this app doesn't
+/// read), so dropping something into any bag slot or any stash tab works
+/// as a comparison staging area. Doesn't see anything Grim Dawn hasn't
+/// actually written to player.gdc yet (autosave, leaving an area, opening
+/// the menu, etc — this app doesn't control when that happens).
 ///
-/// Returns *every* equippable item currently in the bags, not just new
-/// ones — the point is comparing anything you're carrying, not only
-/// today's loot. New-since-last-check items are still tracked (via the
-/// same persisted snapshot as before) and flagged `is_new`, sorted first,
-/// so a fresh haul is easy to spot without hiding everything else.
+/// Returns *every* equippable item, not just new ones — the point is
+/// comparing anything you're carrying or have stashed, not only today's
+/// loot. New-since-last-check items (tracked via a persisted snapshot,
+/// keyed on identity — not on which bag/tab they're in, so moving one
+/// around doesn't re-flag it) are flagged `is_new` and sorted first, so a
+/// fresh haul is easy to spot without hiding everything else.
 fn api_bag_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cursor<Vec<u8>>> {
     let guard = state.save_dir.lock().unwrap();
     let Some(dir) = guard.as_ref() else {
         return json_response(400, &json!({ "error": "no save directory configured" }));
     };
     let save_file_mtime = save_parser::save_file_mtime(dir, character);
-    let current: Vec<_> = match save_parser::read_inventory_items(dir, character) {
+    let mut raw_items = match save_parser::read_inventory_items(dir, character) {
         Ok(items) => items,
         Err(e) => return json_response(500, &json!({ "error": e })),
+    };
+    match save_parser::read_stash_items(dir, character) {
+        Ok(stash_items) => raw_items.extend(stash_items),
+        Err(e) => return json_response(500, &json!({ "error": e })),
     }
-    .into_iter()
-    // Bags hold more than gear — crafting components, relics, augments,
-    // consumables, quest items — none of which can go in an equipment
-    // slot, so none of them belong in a "compare this against your
-    // helmet" list. is_equipment checks equipment.json specifically,
-    // not the broader resolve_path lookup used for actually resolving a
-    // candidate's stats (which also covers those other catalogs, since a
-    // component/relic/augment *attached to* a piece of gear is exactly
-    // what resolve_item needs to look up).
-    .filter(|raw| state.catalog.is_equipment(&raw.base_name))
-    .collect();
+    let current: Vec<_> = raw_items
+        .into_iter()
+        // Bags/stash hold more than gear — crafting components, relics,
+        // augments, consumables, quest items — none of which can go in an
+        // equipment slot, so none of them belong in a "compare this
+        // against your helmet" list. is_equipment checks equipment.json
+        // specifically, not the broader resolve_path lookup used for
+        // actually resolving a candidate's stats (which also covers those
+        // other catalogs, since a component/relic/augment *attached to* a
+        // piece of gear is exactly what resolve_item needs to look up).
+        .filter(|raw| state.catalog.is_equipment(&raw.base_name))
+        .collect();
     drop(guard);
 
     let snapshot_path = state
@@ -280,6 +286,7 @@ fn api_bag_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cu
                 "prefix_name": raw.prefix_name,
                 "suffix_name": raw.suffix_name,
                 "display_name": resolved.display_name,
+                "source": raw.source,
                 "stats": resolved.stats,
                 "unresolved": resolved.unresolved,
                 "is_new": is_new,

@@ -66,17 +66,22 @@ launch from using the same port.
   summary reports exactly how many of each were skipped. The result
   replaces this character's current priorities and is saved immediately,
   same as setting stars by hand.
-- **Items in your bags…** Click it in the Candidate Item panel to get a
-  clickable list of every equippable item currently in your personal
-  inventory bags — not just recently-found ones, so anything you've been
-  carrying around is just as easy to compare as today's loot. Items new
+- **Items in your bags & stash…** Click it in the Candidate Item panel to
+  get a clickable list of every equippable item currently in your
+  personal inventory bags *and* personal stash tabs (however many you've
+  unlocked — not the shared/transfer stash, that's a separate file this
+  app doesn't read) — not just recently-found ones, so anything you've
+  been carrying or set aside in a stash tab is just as easy to compare as
+  today's loot. Drop candidates into any bag slot or any stash tab as a
+  staging area — they show up here either way, tagged with exactly where
+  they are ("Bag 2", "Stash Tab 3"). Items new
   since your last click are flagged `NEW` and sorted to the top, but
   everything else stays listed right below them. No typing DBR paths for
-  stuff that's already sitting in your bag. Not instant (it only sees
-  what Grim Dawn has actually written to the save file — leaving an area,
-  opening the menu, autosave, etc, not the moment you pick something up),
-  and it only looks at your personal inventory bags, not the shared
-  stash.
+  stuff that's already sitting in your bag or stash. Not instant (it only
+  sees what Grim Dawn has actually written to the save file — leaving an
+  area, opening the menu, autosave, etc, not the moment you pick
+  something up), and it only looks at your personal bags and personal
+  stash tabs, not the shared/transfer stash.
 
 ## Not built yet
 
@@ -88,8 +93,9 @@ launch from using the same port.
   parser against without a real sample) or a live memory hook into the
   running game (the same category of technique overlay/trainer tools use
   — DLL injection, real crash risk, antivirus flags it, breaks on every
-  game patch). "Items in your bags…" above is the safe middle ground:
-  same end result once the save file catches up, none of that risk.
+  game patch). "Items in your bags & stash…" above is the safe middle
+  ground: same end result once the save file catches up, none of that
+  risk.
 - **Per-skill priority and mastery scoring.** grim_gleaner profiles carry
   `skill_weights` and `masteries` for scoring skill-modifier items and
   mastery bonuses; importing a profile reports how many of each it found
