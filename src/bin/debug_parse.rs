@@ -31,6 +31,15 @@ fn main() {
                 equipment.as_array().map(|a| a.len()).unwrap_or(0)
             );
             println!("{}", serde_json::to_string_pretty(equipment).unwrap());
+            println!("\n--- inv.use_alternate / alternate1 / alternate2 / flag ---");
+            println!("use_alternate={:?}", parsed["inv"]["use_alternate"]);
+            println!("alternate1={:?}", parsed["inv"]["alternate1"]);
+            println!("alternate2={:?}", parsed["inv"]["alternate2"]);
+            println!("flag={:?}", parsed["inv"]["flag"]);
+            println!("\n--- inv.weapon1 ---");
+            println!("{}", serde_json::to_string_pretty(&parsed["inv"]["weapon1"]).unwrap());
+            println!("\n--- inv.weapon2 ---");
+            println!("{}", serde_json::to_string_pretty(&parsed["inv"]["weapon2"]).unwrap());
         }
         Err(e) => eprintln!("PARSE ERROR: {e}"),
     }

@@ -1,7 +1,7 @@
 //! Reads Grim Dawn character saves using the vendored `save-parser` crate
 //! (ported from https://github.com/nbak/grim-save-parser, MIT licensed) and
-//! extracts the 12 equipped-gear slots as raw DBR path triples for the
-//! catalog to resolve.
+//! extracts equipped-gear slots (12 fixed body slots plus the active
+//! weapon set) as raw DBR path triples for the catalog to resolve.
 
 use save_parser::util::map_to_json;
 use serde_json::Value;
@@ -138,9 +138,19 @@ pub fn save_file_mtime(save_dir: &Path, character_name: &str) -> Option<u64> {
         .map(|d| d.as_secs())
 }
 
-/// Parses `<save_dir>/<character_name>/player.gdc` and returns the 12
-/// equipped-gear slots (helm, chest, weapons, rings, etc — order matches
-/// Grim Dawn's internal equipment array).
+/// Parses `<save_dir>/<character_name>/player.gdc` and returns the equipped
+/// gear: the 12 fixed body slots (helm, chest, rings, etc — slot 11 is the
+/// Relic slot, confirmed against a real character's data; despite the
+/// name, it is not a weapon slot), plus slots 12/13 for the *currently
+/// active* weapon set's main-hand and off-hand.
+///
+/// Weapons are not part of the 12-slot `inv.equipment` array at all — they
+/// live in separate `inv.weapon1`/`inv.weapon2` arrays (each [main-hand,
+/// off-hand]) for Grim Dawn's two weapon-swap sets, gated by `use_alternate`
+/// (0 = set 1 active, otherwise set 2). Missing this entirely previously
+/// meant "your weapon" never showed up anywhere in this app. Only the
+/// active set is read — the point is comparing what's *currently*
+/// equipped, and the inactive swap set isn't that.
 pub fn read_equipped_items(
     save_dir: &Path,
     character_name: &str,
@@ -175,6 +185,41 @@ pub fn read_equipped_items(
             augment_name: field(item, "augment_name"),
         });
     }
+
+    let use_alternate = parsed
+        .pointer("/inv/use_alternate")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let active_weapon_set = if use_alternate == 0 {
+        "/inv/weapon1"
+    } else {
+        "/inv/weapon2"
+    };
+    if let Some(weapons) = parsed.pointer(active_weapon_set).and_then(|v| v.as_array()) {
+        // WEAPON_SLOT_START matches app.js's SLOT_LABELS (12 = Main Hand,
+        // 13 = Off-Hand) — keep the two in sync if this ever changes.
+        const WEAPON_SLOT_START: usize = 12;
+        for (i, slot) in weapons.iter().enumerate() {
+            let Some(item) = slot.get("item").filter(|v| !v.is_null()) else {
+                continue;
+            };
+            let base_name = field(item, "base_name");
+            if base_name.is_empty() {
+                continue; // e.g. off-hand slot with a 2-handed weapon equipped
+            }
+            items.push(RawEquippedItem {
+                slot_index: WEAPON_SLOT_START + i,
+                base_name,
+                prefix_name: field(item, "prefix_name"),
+                suffix_name: field(item, "suffix_name"),
+                modifier_name: field(item, "modifier_name"),
+                relic_bonus: field(item, "relic_bonus"),
+                component_name: field(item, "component_name"),
+                augment_name: field(item, "augment_name"),
+            });
+        }
+    }
+
     Ok(items)
 }
 
