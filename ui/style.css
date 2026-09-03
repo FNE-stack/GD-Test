@@ -431,6 +431,15 @@ th { color: var(--text-dim); font-weight: 700; font-size: 0.8rem; text-transform
 .flag-dangerous { color: var(--danger); font-weight: 700; }
 .flag-ok { color: var(--ok); font-weight: 600; }
 
+/* Full stat comparison table: a plain "more/less" color cue. Not a
+   judgment call on whether more is actually better for that particular
+   stat (e.g. a lower cooldown-reduction number reads as a loss here even
+   though the stat itself is still purely additive) — same convention the
+   resistance table already uses, just applied to every stat instead of
+   only resistances. */
+.stat-up { color: var(--ok); font-weight: 600; }
+.stat-down { color: var(--danger); font-weight: 600; }
+
 footer {
   max-width: 980px;
   margin: 2rem auto 1.5rem;

@@ -86,8 +86,17 @@
       <button id="compare-btn" type="button" class="primary">Compare</button>
 
       <div id="verdict" class="verdict" hidden></div>
+      <div id="full-compare-wrap" hidden>
+        <h3>Full Stat Comparison <span class="hint">— every stat either item has, not just resistances</span></h3>
+        <table id="full-compare-table">
+          <thead>
+            <tr><th>Stat</th><th id="full-compare-a-header">Current</th><th id="full-compare-b-header">Candidate</th><th>Change</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
       <div id="resist-table-wrap" hidden>
-        <h3>Resistance &amp; Survivability Impact</h3>
+        <h3>Resistance &amp; Survivability Impact <span class="hint">— cap/danger context the table above doesn't have</span></h3>
         <table id="resist-table">
           <thead>
             <tr><th>Stat</th><th>Current</th><th>After swap</th><th>Change</th><th>Flag</th></tr>

@@ -40,7 +40,11 @@ launch from using the same port.
   weighted priority score (letter grade), plus resistance-cap and
   survivability impact — so a shinier fire-damage ring that pushes you over
   your resist cap (wasted) or under 0% (dangerous) gets flagged, not just
-  graded higher.
+  graded higher. Hitting Compare also shows a **full stat comparison** —
+  every stat either item has (damage, retaliation, granted/bonus skills,
+  health, everything, not just the score and the resistance table) side by
+  side with the exact change, so you're not left guessing what a single
+  grade number is actually made of.
 - Resistances are always treated as top priority by default (default to
   4 stars, and the verdict downweights a swap that drops an uncapped
   resistance even if the raw damage score looks better) — capping resist is
