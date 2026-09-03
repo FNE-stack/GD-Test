@@ -75,6 +75,31 @@ pub fn extract_stats(resolved: &Value) -> HashMap<String, f64> {
             continue;
         };
 
+        // skill_bonus/granted_item_skill carry a resolved skill display_name
+        // right alongside their magnitude (skill_level for skill_bonus — a
+        // plain rank number; granted_item_skill has no clean numeric
+        // magnitude at all, since its level_equation is a formula string
+        // like "itemLevel/4+1", not a plain number). Special-cased into a
+        // stat_id that includes the actual skill name, instead of the
+        // generic "{id}:{attribute_key}" qualification below, which would
+        // otherwise produce an unreadable "skill_bonus:skill_level" — and
+        // silently drop the skill's name entirely, since display_name and
+        // skill_reference are non-numeric strings the generic path can't
+        // parse into a value, so they'd just vanish rather than qualify
+        // anything.
+        if id == "skill_bonus" || id == "granted_item_skill" {
+            if let Some(name) = attrs.get("display_name").and_then(|v| v.as_str()) {
+                // skill_bonus: the real rank being added. granted_item_skill:
+                // no such number exists, so 1.0 just marks "this is granted"
+                // — the UI labels these two cases differently rather than
+                // implying a rank on a granted proc skill.
+                let magnitude = attrs.get("skill_level").and_then(parse_num).unwrap_or(1.0);
+                let qualified = format!("{id}:{name}");
+                *stats.entry(qualified).or_insert(0.0) += magnitude;
+                continue;
+            }
+        }
+
         // Primary magnitude: prefer value/percent/flat directly; otherwise
         // average a *_min/*_max pair (e.g. damage_min/damage_max,
         // percent_min/percent_max) into the bare property_id.
@@ -345,6 +370,52 @@ mod tests {
         });
         let stats = extract_stats(&resolved);
         assert_eq!(stats.get("fire_resistance"), Some(&16.0));
+    }
+
+    #[test]
+    fn skill_bonus_resolves_to_the_actual_skill_name_and_rank() {
+        let resolved = json!({
+            "properties": [
+                {
+                    "property_id": "skill_bonus",
+                    "attributes": {
+                        "display_name": "Military Conditioning",
+                        "skill_level": "2",
+                        "skill_reference": "records/skills/playerclass01/passive1.dbr"
+                    }
+                }
+            ]
+        });
+        let stats = extract_stats(&resolved);
+        assert_eq!(
+            stats.get("skill_bonus:Military Conditioning"),
+            Some(&2.0)
+        );
+        // The generic qualified-attribute path shouldn't also fire for this
+        // property once the skill special-case has already handled it.
+        assert_eq!(stats.get("skill_bonus:skill_level"), None);
+    }
+
+    #[test]
+    fn granted_item_skill_resolves_to_the_skill_name_with_no_fake_rank() {
+        // No skill_level here (granted_item_skill never has one — its
+        // level_equation is a formula string, not a plain number), so this
+        // should fall back to a flat "granted" marker instead of silently
+        // dropping the skill entirely or parsing garbage.
+        let resolved = json!({
+            "properties": [
+                {
+                    "property_id": "granted_item_skill",
+                    "attributes": {
+                        "display_name": "Bloody Pox",
+                        "level_equation": "itemLevel/4+1",
+                        "skill_reference": "records/skills/itemskills/legendary/item_bloodypox.dbr"
+                    }
+                }
+            ]
+        });
+        let stats = extract_stats(&resolved);
+        assert_eq!(stats.get("granted_item_skill:Bloody Pox"), Some(&1.0));
     }
 
     #[test]

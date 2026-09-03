@@ -35,6 +35,17 @@ function statLabel(id) {
       if (found) return found.label;
     }
   }
+  // skill_bonus/granted_item_skill stat_ids carry the actual skill's name
+  // after the colon (see extract_stats in stats.rs) — already correctly
+  // capitalized straight from the game's own data, so show it as-is
+  // rather than running it through prettyStat, which would mangle
+  // "skill_bonus:Blitz" into "Skill Bonus:blitz".
+  const skillMatch = id.match(/^(skill_bonus|granted_item_skill):(.+)$/);
+  if (skillMatch) {
+    return skillMatch[1] === "granted_item_skill"
+      ? `${skillMatch[2]} (granted skill)`
+      : skillMatch[2];
+  }
   return prettyStat(id);
 }
 
@@ -75,6 +86,28 @@ function el(tag, attrs = {}, children = []) {
   }
   for (const c of children) node.appendChild(c);
   return node;
+}
+
+// Grim Dawn only writes player.gdc on specific triggers (autosave, leaving
+// an area, opening the menu, quitting), never instantly on pickup/move/sell
+// — so anything read from it can be showing a save from a while ago,
+// including items you no longer actually have. Surfacing exactly when that
+// save was written (rather than implying "live") is the whole fix for that
+// confusion. Called after every /api/equipped and /api/bag-items response,
+// both of which return the same save_file_mtime for whichever character
+// was just read.
+function showSaveFreshness(unixSecs) {
+  const freshnessEl = document.getElementById("save-freshness");
+  if (!unixSecs) {
+    freshnessEl.textContent = "";
+    return;
+  }
+  const when = new Date(unixSecs * 1000);
+  const ageMin = Math.round((Date.now() - when.getTime()) / 60000);
+  const ageText =
+    ageMin < 1 ? "just now" : ageMin === 1 ? "1 min ago" : `${ageMin} min ago`;
+  const timeText = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  freshnessEl.textContent = `Save data as of ${timeText} (${ageText})`;
 }
 
 // ---------- Character + slot selection ----------
@@ -155,6 +188,7 @@ async function loadEquipped() {
     const data = await api(`/api/equipped/${encodeURIComponent(state.character)}`);
     state.equipped = data.items || [];
     state.baselineTotals = data.totals || {};
+    showSaveFreshness(data.save_file_mtime);
   } catch (err) {
     // Previously unhandled here — a failure (e.g. the save parser choking on
     // this character's player.gdc) surfaced only as a console rejection,
@@ -401,6 +435,7 @@ document.getElementById("browse-bag-items-btn").addEventListener("click", async 
   list.innerHTML = "";
   try {
     const data = await api(`/api/bag-items/${encodeURIComponent(state.character)}`);
+    showSaveFreshness(data.save_file_mtime);
     if (!data.items || data.items.length === 0) {
       status.className = "hint";
       status.textContent = "Nothing equippable found in your bags.";
