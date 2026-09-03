@@ -117,9 +117,9 @@ fn handle(
             let name = &path["/api/equipped/".len()..];
             api_equipped(state, name)
         }
-        (Method::Get, path) if path.starts_with("/api/new-items/") => {
-            let name = &path["/api/new-items/".len()..];
-            api_new_items(state, name)
+        (Method::Get, path) if path.starts_with("/api/bag-items/") => {
+            let name = &path["/api/bag-items/".len()..];
+            api_bag_items(state, name)
         }
         (Method::Post, "/api/resolve-item") => api_resolve_item(state, body),
         (Method::Post, "/api/compare") => api_compare(state, body),
@@ -224,8 +224,14 @@ fn api_equipped(state: &Arc<AppState>, character: &str) -> Response<std::io::Cur
 /// updates the snapshot to the current contents. Doesn't see anything
 /// Grim Dawn hasn't actually written to player.gdc yet (autosave, leaving
 /// an area, opening the menu, etc — this app doesn't control when that
-/// happens), so it's "what's new since I last checked", not instant.
-fn api_new_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cursor<Vec<u8>>> {
+/// happens), so "new" here means "since I last checked", not instant.
+///
+/// Returns *every* equippable item currently in the bags, not just new
+/// ones — the point is comparing anything you're carrying, not only
+/// today's loot. New-since-last-check items are still tracked (via the
+/// same persisted snapshot as before) and flagged `is_new`, sorted first,
+/// so a fresh haul is easy to spot without hiding everything else.
+fn api_bag_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cursor<Vec<u8>>> {
     let guard = state.save_dir.lock().unwrap();
     let Some(dir) = guard.as_ref() else {
         return json_response(400, &json!({ "error": "no save directory configured" }));
@@ -255,25 +261,31 @@ fn api_new_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cu
         .and_then(|text| serde_json::from_str::<Vec<String>>(&text).ok())
         .map(|keys| keys.into_iter().collect())
         .unwrap_or_default();
-    let is_first_check = !snapshot_path.exists();
 
-    let mut new_items = Vec::new();
+    let mut items: Vec<(bool, serde_json::Value)> = Vec::with_capacity(current.len());
     let mut current_keys = Vec::with_capacity(current.len());
     for raw in current {
         let key = raw.identity_key();
-        if !known.contains(&key) {
-            let resolved = resolve_item(&state.catalog, &raw.as_equipped());
-            new_items.push(json!({
+        let is_new = !known.contains(&key);
+        let resolved = resolve_item(&state.catalog, &raw.as_equipped());
+        items.push((
+            is_new,
+            json!({
                 "base_name": raw.base_name,
                 "prefix_name": raw.prefix_name,
                 "suffix_name": raw.suffix_name,
                 "display_name": resolved.display_name,
                 "stats": resolved.stats,
                 "unresolved": resolved.unresolved,
-            }));
-        }
+                "is_new": is_new,
+            }),
+        ));
         current_keys.push(key);
     }
+    // New items first; stable sort keeps everything else in its original
+    // (bag/slot) order rather than shuffling the whole list around.
+    items.sort_by_key(|(is_new, _)| !is_new);
+    let items: Vec<serde_json::Value> = items.into_iter().map(|(_, v)| v).collect();
 
     if let Err(e) = std::fs::create_dir_all(&state.profiles_dir) {
         return json_response(500, &json!({ "error": e.to_string() }));
@@ -286,10 +298,7 @@ fn api_new_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cu
         return json_response(500, &json!({ "error": e.to_string() }));
     }
 
-    json_response(
-        200,
-        &json!({ "is_first_check": is_first_check, "new_items": new_items }),
-    )
+    json_response(200, &json!({ "items": items }))
 }
 
 /// Resolves a single item by its base/prefix/suffix DBR paths (used for
