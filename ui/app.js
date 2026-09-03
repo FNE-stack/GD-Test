@@ -1,8 +1,17 @@
 // GD Gear Compare — front end. Talks to the local Rust server's /api/* routes.
 
+// Index 11 was previously (wrongly) labeled "Weapon/Off-hand" — confirmed
+// against real save data across two characters that it's actually the
+// Relic slot (it held a records/items/gearrelic/... item on one of them).
+// The real weapon(s) aren't part of this 12-slot array at all — they live
+// in a separate structure gated by which weapon set is active (see
+// save_parser::read_equipped_items), surfaced here as slots 12/13. Off-Hand
+// stays empty for a 2-handed weapon or a dual-wielder using only one
+// weapon, same as any other unused slot.
 const SLOT_LABELS = [
   "Head", "Chest", "Legs", "Hands", "Feet", "Shoulders",
-  "Belt", "Amulet", "Ring 1", "Ring 2", "Medal", "Weapon/Off-hand",
+  "Belt", "Amulet", "Ring 1", "Ring 2", "Medal", "Relic",
+  "Main Hand", "Off-Hand",
 ];
 
 // Priority tabs/packages/stat labels are NOT hand-curated here — they're
@@ -208,7 +217,7 @@ async function loadEquipped() {
 function renderSlotSelect() {
   const select = document.getElementById("slot-select");
   select.innerHTML = "";
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < SLOT_LABELS.length; i++) {
     const has = state.equipped.find((it) => it.slot_index === i);
     const label = SLOT_LABELS[i] || `Slot ${i}`;
     select.appendChild(
