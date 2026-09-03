@@ -14,6 +14,11 @@ const SLOT_LABELS = [
   "Main Hand", "Off-Hand",
 ];
 
+// Matches save_parser::WEAPON_SLOT_START on the Rust side — keep both in
+// sync. Weapon slots get a damage-output-first verdict (see renderVerdict)
+// instead of the star-weighted relevance score every other slot uses.
+const WEAPON_SLOT_START = 12;
+
 // Priority tabs/packages/stat labels are NOT hand-curated here — they're
 // fetched from /api/priority-taxonomy, a direct port of grim_gleaner's own
 // stats/registry.py (see data/priority_taxonomy.json), so this matches
@@ -567,7 +572,8 @@ document.getElementById("compare-btn").addEventListener("click", async () => {
       }),
     });
 
-    renderVerdict(result, itemA, itemB);
+    const isWeaponSlot = Number(state.selectedSlot) >= WEAPON_SLOT_START;
+    renderVerdict(result, itemA, itemB, isWeaponSlot);
     renderFullCompareTable(
       (itemA && itemA.stats) || {},
       itemB.stats || {},
@@ -625,7 +631,19 @@ function renderFullCompareTable(statsA, statsB, labelA, labelB) {
   }
 }
 
-function renderVerdict(result, itemA, itemB) {
+// Weapon slots (Main Hand/Off-Hand): raw damage output decides the verdict
+// outright — a straight DPS upgrade shouldn't lose to a pile of small
+// unrelated bonuses just because each one happened to be starred (that was
+// the actual bug: the old star-weighted score treated "has this stat at
+// all" almost the same as "has 3x more of it", so a weapon with a much
+// smaller flat-damage roll but more separately-starred bonus lines could
+// outscore one with several times the real DPS). Resistance loss only gets
+// a say when the damage swing is small enough (<8%) to be a genuine
+// toss-up — same idea as "damage is always priority, unless it's close,
+// then resistance breaks the tie".
+const WEAPON_DAMAGE_CLOSE_THRESHOLD_PCT = 8;
+
+function renderVerdict(result, itemA, itemB, isWeaponSlot) {
   const box = document.getElementById("verdict");
   box.hidden = false;
 
@@ -641,15 +659,32 @@ function renderVerdict(result, itemA, itemB) {
     .filter((r) => r.delta < 0 && !r.was_over_cap_before)
     .reduce((sum, r) => sum - r.delta, 0);
 
+  const dmgA = result.damage_index_a || 0;
+  const dmgB = result.damage_index_b || 0;
+  const dmgDelta = dmgB - dmgA;
+  const dmgBase = Math.max(dmgA, dmgB);
+  const dmgPct = dmgBase > 0 ? (dmgDelta / dmgBase) * 100 : 0;
+  const damageIsClose = Math.abs(dmgPct) < WEAPON_DAMAGE_CLOSE_THRESHOLD_PCT;
+
   let cls = "keep-a";
   let headline = `Keep "${itemA ? itemA.display_name : "current item"}"`;
 
   if (dangerous) {
     cls = "danger";
     headline = "Caution — this swap leaves a resistance at or below 0%";
+  } else if (isWeaponSlot && !damageIsClose) {
+    if (dmgDelta > 0) {
+      cls = "equip-b";
+      headline = `Equip "${itemB.display_name}" — clear damage output gain`;
+    } else {
+      cls = "keep-a";
+      headline = `Keep "${itemA ? itemA.display_name : "current item"}" — candidate deals less damage`;
+    }
   } else if (uncappedResistLoss >= 10) {
     cls = "keep-a";
-    headline = `Keep "${itemA ? itemA.display_name : "current item"}" — resistance drop outweighs the damage gain`;
+    headline = isWeaponSlot
+      ? `Keep "${itemA ? itemA.display_name : "current item"}" — damage output is close, resistance drop decides it`
+      : `Keep "${itemA ? itemA.display_name : "current item"}" — resistance drop outweighs the damage gain`;
   } else if (scoreDelta > 5) {
     cls = "equip-b";
     headline = `Equip "${itemB.display_name}"`;
@@ -658,18 +693,33 @@ function renderVerdict(result, itemA, itemB) {
     headline = `Keep "${itemA ? itemA.display_name : "current item"}"`;
   } else {
     cls = "keep-a";
-    headline = "Roughly a wash — close call, check resistances below";
+    headline = isWeaponSlot
+      ? "Damage output and resistances are both close — a wash"
+      : "Roughly a wash — close call, check resistances below";
   }
 
   box.className = "verdict " + cls;
   box.innerHTML = "";
   box.appendChild(el("h3", { text: headline }));
+
+  const dmgNote = isWeaponSlot
+    ? ` · Est. damage output: ${dmgA.toFixed(0)} → ${dmgB.toFixed(0)} (${dmgDelta >= 0 ? "+" : ""}${dmgDelta.toFixed(0)}, ${dmgPct >= 0 ? "+" : ""}${dmgPct.toFixed(0)}%)`
+    : "";
   box.appendChild(
     el("p", {
       text: `Priority score: ${result.item_a.grade} (${result.item_a.score.toFixed(0)}) vs ${result.item_b.grade} (${result.item_b.score.toFixed(0)})` +
+        dmgNote +
         (overcapCount ? ` · ${overcapCount} resistance(s) pushed over cap` : ""),
     })
   );
+  if (isWeaponSlot) {
+    box.appendChild(
+      el("p", {
+        class: "hint",
+        text: "Est. damage output is built from this item's own flat/% damage stats only — it doesn't know the weapon's exact attacks/second, your other gear, OA/DA convergence, crit, or proc chance, so treat it as directional, not exact. Check the in-game tooltip DPS when the numbers are close.",
+      })
+    );
+  }
 }
 
 function renderResistTable(rows) {
