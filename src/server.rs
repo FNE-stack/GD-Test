@@ -230,10 +230,21 @@ fn api_new_items(state: &Arc<AppState>, character: &str) -> Response<std::io::Cu
     let Some(dir) = guard.as_ref() else {
         return json_response(400, &json!({ "error": "no save directory configured" }));
     };
-    let current = match save_parser::read_inventory_items(dir, character) {
+    let current: Vec<_> = match save_parser::read_inventory_items(dir, character) {
         Ok(items) => items,
         Err(e) => return json_response(500, &json!({ "error": e })),
-    };
+    }
+    .into_iter()
+    // Bags hold more than gear — crafting components, relics, augments,
+    // consumables, quest items — none of which can go in an equipment
+    // slot, so none of them belong in a "compare this against your
+    // helmet" list. is_equipment checks equipment.json specifically,
+    // not the broader resolve_path lookup used for actually resolving a
+    // candidate's stats (which also covers those other catalogs, since a
+    // component/relic/augment *attached to* a piece of gear is exactly
+    // what resolve_item needs to look up).
+    .filter(|raw| state.catalog.is_equipment(&raw.base_name))
+    .collect();
     drop(guard);
 
     let snapshot_path = state

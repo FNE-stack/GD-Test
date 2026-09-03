@@ -51,6 +51,17 @@ impl Catalog {
         })
     }
 
+    /// True if `record_path` names an actual wearable/wieldable gear item
+    /// (equipment.json specifically) — as opposed to a crafting component,
+    /// relic, augment, or anything else `resolve_path` can also look up.
+    /// Used to filter "what's in my bags" down to things that could
+    /// actually occupy one of the 12 equipment slots this app compares
+    /// against; a stack of crafting materials isn't a candidate for
+    /// replacing a helmet.
+    pub fn is_equipment(&self, record_path: &str) -> bool {
+        !record_path.is_empty() && self.equipment_by_path.contains_key(record_path)
+    }
+
     /// Look up a base item, prefix, or suffix DBR path across all known
     /// catalogs (equipment carries the base item; affixes carry
     /// prefix/suffix stat lines; relics/augments/components are separate
