@@ -568,12 +568,62 @@ document.getElementById("compare-btn").addEventListener("click", async () => {
     });
 
     renderVerdict(result, itemA, itemB);
+    renderFullCompareTable(
+      (itemA && itemA.stats) || {},
+      itemB.stats || {},
+      itemA ? itemA.display_name : "Current (empty)",
+      itemB.display_name || "Candidate"
+    );
     renderResistTable(result.resist_impact);
   } catch (err) {
     console.error(err);
     alert("Compare failed — " + err.message);
   }
 });
+
+// Every stat either item has, not just the resistance subset the table
+// below covers — the resist table exists for its cap/danger flagging,
+// not because resistances are the only thing worth comparing. Built
+// entirely from data the page already has (item_a_stats/item_b_stats),
+// no extra API call needed.
+function renderFullCompareTable(statsA, statsB, labelA, labelB) {
+  const wrap = document.getElementById("full-compare-wrap");
+  const tbody = document.querySelector("#full-compare-table tbody");
+  tbody.innerHTML = "";
+  document.getElementById("full-compare-a-header").textContent = labelA;
+  document.getElementById("full-compare-b-header").textContent = labelB;
+
+  const allStats = new Set([...Object.keys(statsA), ...Object.keys(statsB)]);
+  const rows = [];
+  for (const stat of allStats) {
+    const a = statsA[stat] || 0;
+    const b = statsB[stat] || 0;
+    if (a === 0 && b === 0) continue;
+    rows.push({ stat, a, b, delta: b - a });
+  }
+  // Biggest swings first; alphabetical by label as a stable tiebreaker.
+  rows.sort(
+    (x, y) => Math.abs(y.delta) - Math.abs(x.delta) || statLabel(x.stat).localeCompare(statLabel(y.stat))
+  );
+
+  if (rows.length === 0) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  for (const r of rows) {
+    const deltaText = r.delta === 0 ? "—" : (r.delta > 0 ? "+" : "") + r.delta.toFixed(1);
+    const deltaClass = r.delta > 0 ? "stat-up" : r.delta < 0 ? "stat-down" : "";
+    tbody.appendChild(
+      el("tr", {}, [
+        el("td", { text: statLabel(r.stat) }),
+        el("td", { text: r.a.toFixed(1) }),
+        el("td", { text: r.b.toFixed(1) }),
+        el("td", { text: deltaText, class: deltaClass }),
+      ])
+    );
+  }
+}
 
 function renderVerdict(result, itemA, itemB) {
   const box = document.getElementById("verdict");
