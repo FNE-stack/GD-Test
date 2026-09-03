@@ -375,48 +375,52 @@ document.getElementById("import-gg-file").addEventListener("change", async (e) =
   }
 });
 
-// ---------- Check for new items ----------
-// Diffs the character's current stash/backpack against a snapshot from
-// the last time this ran (persisted server-side per character) and lists
-// whatever's new. Not instant — it only sees what Grim Dawn has actually
-// written to the save file (autosave, leaving an area, opening the menu,
-// etc), not the moment an item is picked up. Clicking a result fills in
-// the manual fields below and resolves it as the candidate, same as
-// typing the paths in by hand.
+// ---------- Items in your bags ----------
+// Lists every equippable item currently in the character's stash/backpack
+// — not just recently-picked-up ones, so anything you've been carrying
+// around is just as pickable as today's loot. Items new since the last
+// time this ran (tracked server-side per character) are flagged and
+// sorted to the top so a fresh haul is still easy to spot; everything
+// else is still right there below it, not hidden. Not instant — it only
+// sees what Grim Dawn has actually written to the save file (autosave,
+// leaving an area, opening the menu, etc), not the moment an item is
+// picked up. Clicking a result fills in the manual fields below and
+// resolves it as the candidate, same as typing the paths in by hand.
 
-document.getElementById("check-new-items-btn").addEventListener("click", async () => {
-  const status = document.getElementById("new-items-status");
-  const list = document.getElementById("new-items-list");
+document.getElementById("browse-bag-items-btn").addEventListener("click", async () => {
+  const status = document.getElementById("bag-items-status");
+  const list = document.getElementById("bag-items-list");
   if (!state.character) {
     status.className = "hint";
     status.textContent = "Pick a character first.";
     return;
   }
   status.className = "hint";
-  status.textContent = "Checking…";
+  status.textContent = "Reading your bags…";
   list.hidden = true;
   list.innerHTML = "";
   try {
-    const data = await api(`/api/new-items/${encodeURIComponent(state.character)}`);
-    if (data.is_first_check) {
+    const data = await api(`/api/bag-items/${encodeURIComponent(state.character)}`);
+    if (!data.items || data.items.length === 0) {
       status.className = "hint";
-      status.textContent =
-        "Baseline set from your current stash/backpack — play a bit, then check again to see what's new.";
+      status.textContent = "Nothing equippable found in your bags.";
       return;
     }
-    if (!data.new_items || data.new_items.length === 0) {
-      status.className = "hint";
-      status.textContent = "No new items since your last check.";
-      return;
-    }
+    const newCount = data.items.filter((item) => item.is_new).length;
     status.className = "status-ok";
-    status.textContent = `${data.new_items.length} new item(s) — click one to compare it:`;
+    status.textContent =
+      `${data.items.length} item(s)` +
+      (newCount > 0 ? ` — ${newCount} new since last check` : "") +
+      " — click one to compare it:";
     list.hidden = false;
-    for (const item of data.new_items) {
-      const row = el("div", { class: "new-item-row" }, [
-        el("span", { text: item.display_name || item.base_name }),
-        el("button", { type: "button", class: "use-btn", text: "Use as candidate" }),
-      ]);
+    for (const item of data.items) {
+      const label = el("span", { text: item.display_name || item.base_name });
+      const rowChildren = [label];
+      if (item.is_new) {
+        rowChildren.push(el("span", { class: "new-badge", text: "NEW" }));
+      }
+      rowChildren.push(el("button", { type: "button", class: "use-btn", text: "Use as candidate" }));
+      const row = el("div", { class: "new-item-row" }, rowChildren);
       row.addEventListener("click", () => {
         document.getElementById("candidate-base").value = item.base_name || "";
         document.getElementById("candidate-prefix").value = item.prefix_name || "";
@@ -594,9 +598,9 @@ function renderResistTable(rows) {
 document.getElementById("character-select").addEventListener("change", async (e) => {
   state.character = e.target.value;
   state.selectedSlot = 0;
-  document.getElementById("new-items-status").textContent = "";
-  document.getElementById("new-items-list").hidden = true;
-  document.getElementById("new-items-list").innerHTML = "";
+  document.getElementById("bag-items-status").textContent = "";
+  document.getElementById("bag-items-list").hidden = true;
+  document.getElementById("bag-items-list").innerHTML = "";
   await loadEquipped();
   await loadProfile();
 });

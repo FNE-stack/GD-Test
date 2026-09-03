@@ -39,8 +39,8 @@ launch from using the same port.
   Compare\settings.json`, no restart needed. That's a stable, per-user
   location independent of which folder any given release's `.exe` happens
   to be unzipped into, so this (and your saved priority profiles, and the
-  "check for new items" baseline) survive updating to a newer build —
-  no re-entering it every version.
+  "items in your bags" new-item tracking) survive updating to a newer
+  build — no re-entering it every version.
 - **Import a grim_gleaner profile.** Click "Import grim_gleaner profile…"
   above the priority tabs and pick a profile JSON exported from
   grim_gleaner's own UI — its `weights` map ports over directly (same
@@ -51,15 +51,17 @@ launch from using the same port.
   summary reports exactly how many of each were skipped. The result
   replaces this character's current priorities and is saved immediately,
   same as setting stars by hand.
-- **Check for new items.** Click "Check for new items" in the Candidate
-  Item panel to diff your current stash/backpack against a snapshot from
-  the last time you checked, and get a clickable list of whatever's new —
-  no typing DBR paths for stuff you actually just found. Not instant (it
-  only sees what Grim Dawn has actually written to the save file — leaving
-  an area, opening the menu, autosave, etc, not the moment you pick
-  something up), and it only looks at your personal inventory bags, not
-  the shared stash. First click on a character just sets the baseline;
-  the list only shows up from the second check onward.
+- **Items in your bags…** Click it in the Candidate Item panel to get a
+  clickable list of every equippable item currently in your personal
+  inventory bags — not just recently-found ones, so anything you've been
+  carrying around is just as easy to compare as today's loot. Items new
+  since your last click are flagged `NEW` and sorted to the top, but
+  everything else stays listed right below them. No typing DBR paths for
+  stuff that's already sitting in your bag. Not instant (it only sees
+  what Grim Dawn has actually written to the save file — leaving an area,
+  opening the menu, autosave, etc, not the moment you pick something up),
+  and it only looks at your personal inventory bags, not the shared
+  stash.
 
 ## Not built yet
 
@@ -71,7 +73,7 @@ launch from using the same port.
   parser against without a real sample) or a live memory hook into the
   running game (the same category of technique overlay/trainer tools use
   — DLL injection, real crash risk, antivirus flags it, breaks on every
-  game patch). "Check for new items" above is the safe middle ground:
+  game patch). "Items in your bags…" above is the safe middle ground:
   same end result once the save file catches up, none of that risk.
 - **Per-skill priority and mastery scoring.** grim_gleaner profiles carry
   `skill_weights` and `masteries` for scoring skill-modifier items and

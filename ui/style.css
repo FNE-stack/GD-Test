@@ -326,6 +326,24 @@ button.primary:hover { background: var(--accent-strong); border-color: var(--acc
   flex-shrink: 0;
 }
 
+.new-item-row span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ok);
+  background: var(--ok-bg);
+  border: 1px solid var(--ok);
+  border-radius: 4px;
+  padding: 0.08rem 0.4rem;
+}
+
 .item-column h3 {
   margin: 0 0 0.5rem;
   font-size: 0.85rem;
